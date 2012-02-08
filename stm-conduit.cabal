@@ -1,0 +1,28 @@
+Name:                stm-conduit
+Version:             0.2.0
+Synopsis:            Introduces conduits to channels, and promotes using conduits concurrently.
+Homepage:            https://github.com/wowus/stm-conduit
+License:             BSD3
+License-file:        LICENSE
+Author:              Clark Gaebel
+Maintainer:          cgaebel@csclub.uwaterloo.ca
+Category:            Concurrency, Conduit
+
+Build-type:          Simple
+
+Cabal-version:       >=1.2
+
+
+Library
+  -- Modules exported by the library.
+  -- Exposed-modules:     
+  
+  -- Packages needed in order to build this package.
+  -- Build-depends:       
+  
+  -- Modules not exported by this package.
+  -- Other-modules:       
+  
+  -- Extra tools (e.g. alex, hsc2hs, ...) needed to build the source.
+  -- Build-tools:         
+  
