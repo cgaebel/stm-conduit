@@ -1,6 +1,9 @@
 Name:                stm-conduit
 Version:             0.2.0
-Synopsis:            Introduces conduits to channels, and promotes using conduits concurrently.
+Synopsis:            Introduces conduits to channels, and promotes using
+                     conduits concurrently.
+Description:         Provides two simple conduit wrappers around STM
+                     channels - a source and a sink.
 Homepage:            https://github.com/wowus/stm-conduit
 License:             BSD3
 License-file:        LICENSE
