@@ -13,16 +13,16 @@ Build-type:          Simple
 Cabal-version:       >=1.8
 
 Library
-  Exposed-modules:   Data.Conduit.TMChan
-  
-  -- Packages needed in order to build this package.
-  Build-depends:     base ==4.*,
-                     transformers ==0.2.*,
-                     stm == 2.2.*,
-                     stm-chans ==1.2.*,
-                     conduit ==0.2.*
+    Exposed-modules:   Data.Conduit.TMChan
+    
+    -- Packages needed in order to build this package.
+    Build-depends:     base ==4.*,
+                        transformers ==0.2.*,
+                        stm == 2.2.*,
+                        stm-chans ==1.2.*,
+                        conduit ==0.2.*
 
-  ghc-options:       -Wall -fwarn-tabs
+    ghc-options:       -Wall -fwarn-tabs
 
 test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
