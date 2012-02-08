@@ -46,7 +46,7 @@ sourceTMChan ch = src
                   case a of
                     Just x -> return $ Open src x
                     Nothing -> return $ Closed
-        close = return () -- close is done by the sink.
+        close = liftIO . atomically $ closeTMChan ch
 {-# INLINE sourceTMChan #-}
 
 -- | A simple wrapper around a TMChan. As data is pushed into this sink, it
