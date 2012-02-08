@@ -1,5 +1,5 @@
 Name:                stm-conduit
-Version:             0.2.0
+Version:             0.2.1
 Synopsis:            Introduces conduits to channels, and promotes using
                      conduits concurrently.
 Description:         Provides two simple conduit wrappers around STM
@@ -20,10 +20,10 @@ Library
     
     -- Packages needed in order to build this package.
     Build-depends:     base ==4.*,
-                        transformers ==0.2.*,
-                        stm == 2.2.*,
-                        stm-chans ==1.2.*,
-                        conduit ==0.2.*
+                       transformers ==0.2.*,
+                       stm == 2.2.*,
+                       stm-chans ==1.2.*,
+                       conduit ==0.2.*
 
     ghc-options:       -Wall -fwarn-tabs
 
