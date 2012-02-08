@@ -3,16 +3,19 @@
 --   example:
 --
 --   We first create a channel for communication...
+--
 --   > do chan <- atomically $ newTMChan
 --
 --   Then we fork a new thread loading a wackton of pictures into memory. The
 --   data (pictures, in this case) will be streamed down the channel to whatever
 --   is on the other side.
+--
 --   >    _ <- forkIO . runResourceT $ loadTextures lotsOfPictures $$ sinkTMChan chan
 --
 --   Finally, we connect something to the other end of the channel. In this
 --   case, we connect a sink which uploads the textures one by one to the
 --   graphics card.
+--
 --   >    runResourceT $ sourceTMChan chan $$ Conduit.mapM_ (liftIO . uploadToGraphicsCard)
 --
 --   By running the two tasks in parallel, we no longer have to wait for one
@@ -20,7 +23,7 @@
 --   disk. This avoids the common switching of bottlenecks (such as between the
 --   disk and graphics memory) that most loading processes seem to love.
 --
---   We re-export Control.Concurrent.STM.TMChan module for convenience.
+--   Control.Concurrent.STM.TMChan is re-exported for convenience.
 module Data.Conduit.TMChan ( module Control.Concurrent.STM.TMChan
                            , sourceTMChan
                            , sinkTMChan
