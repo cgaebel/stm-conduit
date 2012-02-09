@@ -1,5 +1,5 @@
 Name:                stm-conduit
-Version:             0.2.1
+Version:             0.2.2
 Synopsis:            Introduces conduits to channels, and promotes using
                      conduits concurrently.
 Description:         Provides two simple conduit wrappers around STM
