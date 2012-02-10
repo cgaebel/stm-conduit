@@ -52,10 +52,12 @@ import Control.Concurrent.STM.TMChan
 
 import Data.Conduit
 
-chanSource :: chan -- ^ The channel.
-           -> (chan -> STM (Maybe a)) -- ^ The 'read' function.
-           -> (chan -> STM ()) -- ^ The 'close' function.
-           -> Source IO a
+chanSource 
+    :: ResourceIO m 
+    => chan                     -- ^ The channel.
+    -> (chan -> STM (Maybe a))  -- ^ The 'read' function.
+    -> (chan -> STM ())         -- ^ The 'close' function.
+    -> Source m a
 chanSource ch reader closer = src
     where
         src = Source pull close
@@ -66,10 +68,12 @@ chanSource ch reader closer = src
         close = liftIO . atomically $ closer ch
 {-# INLINE chanSource #-}
 
-chanSink :: chan -- ^ The channel.
-         -> (chan -> a -> STM ()) -- ^ The 'write' function.
-         -> (chan -> STM ()) -- ^ The 'close' function.
-         -> Sink a IO ()
+chanSink 
+    :: ResourceIO m
+    => chan                     -- ^ The channel.
+    -> (chan -> a -> STM ())    -- ^ The 'write' function.
+    -> (chan -> STM ())         -- ^ The 'close' function.
+    -> Sink a m ()
 chanSink ch writer closer = sink
     where
         sink = SinkData push close
@@ -83,14 +87,14 @@ chanSink ch writer closer = sink
 --   channel is closed, the source will close also.
 --
 --   If the channel fills up, the pipeline will stall until values are read.
-sourceTBMChan :: TBMChan a -> Source IO a
+sourceTBMChan :: ResourceIO m => TBMChan a -> Source m a
 sourceTBMChan ch = chanSource ch readTBMChan closeTBMChan
 {-# INLINE sourceTBMChan #-}
 
 -- | A simple wrapper around a TMChan. As data is pushed into the channel, the
 --   source will read it and pass it down the conduit pipeline. When the
 --   channel is closed, the source will close also.
-sourceTMChan :: TMChan a -> Source IO a
+sourceTMChan :: ResourceIO m => TMChan a -> Source m a
 sourceTMChan ch = chanSource ch readTMChan closeTMChan
 {-# INLINE sourceTMChan #-}
 
@@ -98,13 +102,13 @@ sourceTMChan ch = chanSource ch readTMChan closeTMChan
 --   will magically begin to appear in the channel. If the channel is full,
 --   the sink will block until space frees up. When the sink is closed, the
 --   channel will close too.
-sinkTBMChan :: TBMChan a -> Sink a IO ()
+sinkTBMChan :: ResourceIO m => TBMChan a -> Sink a m ()
 sinkTBMChan ch = chanSink ch writeTBMChan closeTBMChan
 {-# INLINE sinkTBMChan #-}
 
 -- | A simple wrapper around a TMChan. As data is pushed into this sink, it
 --   will magically begin to appear in the channel. When the sink is closed,
 --   the channel will close too.
-sinkTMChan :: TMChan a -> Sink a IO ()
+sinkTMChan :: ResourceIO m => TMChan a -> Sink a m ()
 sinkTMChan ch = chanSink ch writeTMChan closeTMChan
 {-# INLINE sinkTMChan #-}
