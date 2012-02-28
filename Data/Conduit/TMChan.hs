@@ -1,4 +1,5 @@
--- | * Introduction
+-- | Introduction
+--   =============
 --
 --   Contains a simple source and sink for linking together conduits in
 --   in different threads. Usage is so easy, it's best explained with an
@@ -28,7 +29,8 @@
 --   Control.Concurrent.STM.TMChan and Control.Concurrent.STM.TBMChan are
 --   re-exported for convenience.
 --
---   * Caveats
+--   Caveats
+--   ==========
 --
 --   It is recommended to use TBMChan as much as possible, and generally avoid
 --   TMChan usage. TMChans are unbounded, and if used, the conduit pipeline
@@ -37,15 +39,21 @@
 --
 --   Therefore, use bounded channels as much as possible, preferably with a
 --   high bound so it will be hit infrequently.
-module Data.Conduit.TMChan ( module Control.Concurrent.STM.TBMChan
+module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
+                             module Control.Concurrent.STM.TBMChan
                            , sourceTBMChan
                            , sinkTBMChan
+                           -- * Unbounded Channel Connectors
                            , module Control.Concurrent.STM.TMChan
                            , sourceTMChan
                            , sinkTMChan
+                           -- * Parallel Combinators
+                           , (>=<)
+                           , mergeSources
                            ) where
 
 import Control.Monad.IO.Class ( liftIO )
+import Control.Monad.Trans.Resource
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.STM.TMChan
@@ -112,3 +120,33 @@ sinkTBMChan ch = chanSink ch writeTBMChan closeTBMChan
 sinkTMChan :: ResourceIO m => TMChan a -> Sink a m ()
 sinkTMChan ch = chanSink ch writeTMChan closeTMChan
 {-# INLINE sinkTMChan #-}
+
+infixl 5 >=<
+
+-- | Combines two sources with an unbounded channel, creating a new source
+--   which pulls data from a mix of the two sources: whichever produces first.
+--
+--   The order of the new source's data is undefined, but it will be some
+--   combination of the two given sources.
+(>=<) :: ResourceIO m
+      => Source m a
+      -> Source m a
+      -> ResourceT m (Source m a)
+sa >=< sb = do c <- liftIO . atomically $ newTMChan 
+               _ <- resourceForkIO $ sa $$ sinkTMChan c
+               _ <- resourceForkIO $ sb $$ sinkTMChan c
+               return $ sourceTMChan c
+
+-- | Merges a list of sources, putting them all into a bounded channel, and
+--   returns a source which can be pulled from to pull from all the given
+--   sources in a first-come-first-serve basis.
+--
+--   The order of the new source's data is undefined, but it will be some
+--   combination of the given sources.
+mergeSources :: ResourceIO m
+             => [Source m a] -- ^ The sources to merge.
+             -> Int -- ^ The bound of the intermediate channel.
+             -> ResourceT m (Source m a)
+mergeSources sx bound = do c <- liftIO . atomically $ newTBMChan bound
+                           mapM_ (\s -> resourceForkIO $ s $$ sinkTBMChan c) sx
+                           return $ sourceTBMChan c
