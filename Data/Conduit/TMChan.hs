@@ -1,5 +1,4 @@
--- | Introduction
---   =============
+-- | * Introduction
 --
 --   Contains a simple source and sink for linking together conduits in
 --   in different threads. Usage is so easy, it's best explained with an
@@ -29,8 +28,7 @@
 --   Control.Concurrent.STM.TMChan and Control.Concurrent.STM.TBMChan are
 --   re-exported for convenience.
 --
---   Caveats
---   ==========
+--   * Caveats
 --
 --   It is recommended to use TBMChan as much as possible, and generally avoid
 --   TMChan usage. TMChans are unbounded, and if used, the conduit pipeline
