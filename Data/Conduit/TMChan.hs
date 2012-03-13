@@ -50,6 +50,8 @@ module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
                            , mergeSources
                            ) where
 
+import Control.Applicative
+import Control.Monad
 import Control.Monad.IO.Class ( liftIO )
 import Control.Monad.Trans.Resource
 import Control.Concurrent.STM
@@ -67,7 +69,7 @@ chanSource
 chanSource ch reader closer = src
     where
         src = Source pull close
-        pull = do a <- liftIO . atomically $ reader ch
+        pull = do a <- liftSTM $ reader ch
                   case a of
                     Just x  -> return $ Open src x
                     Nothing -> return Closed
@@ -83,7 +85,7 @@ chanSink
 chanSink ch writer closer = sink
     where
         sink = SinkData push close
-        push input = do liftIO . atomically $ writer ch input
+        push input = do liftSTM $ writer ch input
                         return $ Processing push close
         close = liftIO . atomically $ closer ch
 {-# INLINE chanSink #-}
@@ -121,6 +123,15 @@ sinkTMChan ch = chanSink ch writeTMChan closeTMChan
 
 infixl 5 >=<
 
+-- | Modifies a TVar, returning its new value.
+modifyTVar'' :: TVar a -> (a -> a) -> STM a
+modifyTVar'' tv f = do x <- f <$> readTVar tv
+                       writeTVar tv x
+                       return x
+
+liftSTM :: ResourceIO m => STM a -> ResourceT m a
+liftSTM = liftIO . atomically
+
 -- | Combines two sources with an unbounded channel, creating a new source
 --   which pulls data from a mix of the two sources: whichever produces first.
 --
@@ -130,10 +141,13 @@ infixl 5 >=<
       => Source m a
       -> Source m a
       -> ResourceT m (Source m a)
-sa >=< sb = do c <- liftIO . atomically $ newTMChan 
-               _ <- resourceForkIO $ sa $$ sinkTMChan c
-               _ <- resourceForkIO $ sb $$ sinkTMChan c
-               return $ sourceTMChan c
+sa >=< sb = mergeSources [ sa, sb ] 16
+{-# INLINE (>=<) #-}
+
+decRefcount :: TVar Int -> TBMChan a ->  STM ()
+decRefcount tv chan = do n <- modifyTVar'' tv (subtract 1)
+                         when (n == 0) $
+                            closeTBMChan chan
 
 -- | Merges a list of sources, putting them all into a bounded channel, and
 --   returns a source which can be pulled from to pull from all the given
@@ -146,5 +160,6 @@ mergeSources :: ResourceIO m
              -> Int -- ^ The bound of the intermediate channel.
              -> ResourceT m (Source m a)
 mergeSources sx bound = do c <- liftIO . atomically $ newTBMChan bound
-                           mapM_ (\s -> resourceForkIO $ s $$ sinkTBMChan c) sx
+                           refcount <- liftSTM . newTVar $ length sx
+                           mapM_ (\s -> resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount) sx
                            return $ sourceTBMChan c

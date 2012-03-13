@@ -1,5 +1,7 @@
 module Main ( main ) where
 
+import Data.List
+
 import Test.Framework (defaultMain, testGroup)
 import Test.Framework.Providers.HUnit
 import Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -20,6 +22,7 @@ tests = [
                 testCase "simpleList" test_simpleList
             ],
         testGroup "Bug fixes" [
+                testCase "multipleWriters" test_multipleWriters
             ]
     ]
 
@@ -31,3 +34,9 @@ test_simpleList = do chan <- atomically $ newTMChan
                      assertBool "channel is closed after running" closed
     where
         testList = [1..10000]
+
+test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList [1..10]
+                                                           , sourceList [11..20]
+                                                           ] 3
+                          xs <- runResourceT $ ms $$ consume
+                          assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs

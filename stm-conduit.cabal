@@ -1,5 +1,5 @@
 Name:                stm-conduit
-Version:             0.2.4
+Version:             0.2.4.1
 Synopsis:            Introduces conduits to channels, and promotes using
                      conduits concurrently.
 Description:         Provides two simple conduit wrappers around STM
@@ -32,7 +32,7 @@ test-suite stm-conduit-tests
     main-is:        Test.hs
     hs-source-dirs: test/
 
-    ghc-options:    -rtsopts=all
+    ghc-options:    -rtsopts=all -threaded
 
     Build-Depends:  base ==4.*,
                     QuickCheck >= 2,
