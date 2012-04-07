@@ -9,6 +9,8 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck
 import Test.HUnit
 
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Class (lift)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Data.Conduit
@@ -35,8 +37,8 @@ test_simpleList = do chan <- atomically $ newTMChan
     where
         testList = [1..10000]
 
-test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList [1..10]
-                                                           , sourceList [11..20]
-                                                           ] 3
+test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10]::[Integer])
+                                                            , sourceList ([11..20]::[Integer])
+                                                            ] 3
                           xs <- runResourceT $ ms $$ consume
-                          assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
+                          liftIO $ assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
