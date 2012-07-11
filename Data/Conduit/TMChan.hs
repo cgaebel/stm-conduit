@@ -60,6 +60,7 @@ import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.STM.TMChan
 
 import Data.Conduit
+import Data.Conduit.Internal
 
 chanSource 
     :: MonadIO m
@@ -69,11 +70,11 @@ chanSource
     -> Source m a
 chanSource ch reader closer = src
     where
-        src = PipeM pull close
+        src = PipeM pull
         pull = do a <- liftSTM $ reader ch
                   case a of
                     Just x  -> return $ HaveOutput src close x
-                    Nothing -> return $ Done Nothing ()
+                    Nothing -> return $ Done ()
         close = liftSTM $ closer ch
 {-# INLINE chanSource #-}
 
@@ -88,8 +89,8 @@ chanSink ch writer closer = sink
         sink = NeedInput push close
 
         push input = PipeM ((liftIO . atomically $ writer ch input) 
-                            >> (return $ NeedInput push close)) close
-        close = liftSTM $ closer ch
+                            >> (return $ NeedInput push close))
+        close = const . liftSTM $ closer ch
 {-# INLINE chanSink #-}
 
 -- | A simple wrapper around a TBMChan. As data is pushed into the channel, the
