@@ -68,7 +68,7 @@ chanSource
     -> (chan -> STM (Maybe a))  -- ^ The 'read' function.
     -> (chan -> STM ())         -- ^ The 'close' function.
     -> Source m a
-chanSource ch reader closer = src
+chanSource ch reader closer = ConduitM src
     where
         src = PipeM pull
         pull = do a <- liftSTM $ reader ch
@@ -84,7 +84,7 @@ chanSink
     -> (chan -> a -> STM ())    -- ^ The 'write' function.
     -> (chan -> STM ())         -- ^ The 'close' function.
     -> Sink a m ()
-chanSink ch writer closer = sink
+chanSink ch writer closer = ConduitM sink
     where
         sink = NeedInput push close
 
