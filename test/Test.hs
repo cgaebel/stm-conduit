@@ -14,14 +14,16 @@ import Control.Monad.Trans.Class (lift)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Data.Conduit
-import Data.Conduit.List
+import Data.Conduit.List as CL
 import Data.Conduit.TMChan
+import Data.Conduit.TQueue
 
 main = defaultMain tests
 
 tests = [
         testGroup "Behaves to spec" [
-                testCase "simpleList" test_simpleList
+                  testCase "simpleList using TMChan" test_simpleList
+                , testCase "simpleList using TQueue" test_simpleQueue
             ],
         testGroup "Bug fixes" [
                 testCase "multipleWriters" test_multipleWriters
@@ -37,6 +39,12 @@ test_simpleList = do chan <- atomically $ newTMChan
     where
         testList = [1..10000]
 
+test_simpleQueue = do q <- atomically $ newTQueue
+                      forkIO . runResourceT $ sourceList testList $$ sinkTQueue q
+                      lst'  <- runResourceT $ sourceTQueue q $$ CL.take (length testList)
+                      assertEqual "for the numbers [1..10000]," testList lst'
+    where
+        testList = [1..10000]
 test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10]::[Integer])
                                                             , sourceList ([11..20]::[Integer])
                                                             ] 3
