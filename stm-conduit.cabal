@@ -18,6 +18,7 @@ Cabal-version:       >=1.8
 Library
     exposed-modules:
         Data.Conduit.TMChan
+        Data.Conduit.TQueue
     
     build-depends:
         base         == 4.*
