@@ -1,5 +1,5 @@
 Name:                stm-conduit
-Version:             1.0.0
+Version:             1.1.0
 Synopsis:            Introduces conduits to channels, and promotes using
                      conduits concurrently.
 Description:         Provides two simple conduit wrappers around STM
@@ -8,7 +8,7 @@ Homepage:            https://github.com/wowus/stm-conduit
 License:             BSD3
 License-file:        LICENSE
 Author:              Clark Gaebel
-Maintainer:          cgaebel@csclub.uwaterloo.ca
+Maintainer:          cgaebel@uwaterloo.ca
 Category:            Concurrency, Conduit
 
 Build-type:          Simple
