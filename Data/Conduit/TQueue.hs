@@ -16,7 +16,9 @@
 --   Here is short description of data structures:
 --     
 --     * TQueue   - unbounded infinite queue
---     * TBMQueue - bounded infinite queue
+--     * TBQueue  - bounded infinite queue
+--     * TMQueue  - unbounded finite (closable) queue
+--     * TBMQueue - bounded finite (closable) queue
 --
 -- Caveats
 -- 
