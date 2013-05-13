@@ -35,11 +35,19 @@ module Data.Conduit.TQueue
     -- ** TBQueue connectors
   , sourceTBQueue
   , sinkTBQueue
+    -- ** TMQueue connectors
+  , sourceTMQueue
+  , sinkTMQueue
+    -- ** TBMQueue connectors
+  , sourceTBMQueue
+  , sinkTBMQueue
   , module Control.Concurrent.STM.TQueue
   ) where
 
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TQueue
+import Control.Concurrent.STM.TBMQueue
+import Control.Concurrent.STM.TMQueue
 import Control.Monad.IO.Class
 import Data.Conduit
 import Data.Conduit.Internal
@@ -76,6 +84,44 @@ sinkTBQueue q = ConduitM src
                             >> (return $ NeedInput push close))
         close _    = return ()
 
+sourceTMQueue :: MonadIO m => TMQueue a -> Source m a
+sourceTMQueue q = ConduitM src
+  where src = PipeM pull
+        pull = do mx <- liftSTM $ readTMQueue q
+                  case mx of
+                      Nothing -> return $ Done ()
+                      Just x -> return $ HaveOutput src close x
+        close = do liftSTM $ closeTMQueue q
+                   return ()
+
+sinkTMQueue :: MonadIO m => TMQueue a -> Sink a m ()
+sinkTMQueue q = ConduitM src
+  where src = sink
+        sink =  NeedInput push close
+        push input = PipeM ((liftSTM $ writeTMQueue q input)
+                            >> (return $ NeedInput push close))
+        close _ = do liftSTM $ closeTMQueue q
+                     return ()
+
+sourceTBMQueue :: MonadIO m => TBMQueue a -> Source m a
+sourceTBMQueue q = ConduitM src
+  where src = PipeM pull
+        pull = do mx <- liftSTM $ readTBMQueue q
+                  case mx of
+                      Nothing -> return $ Done ()
+                      Just x -> return $ HaveOutput src close x
+        close = do liftSTM $ closeTBMQueue q
+                   return ()
+
+sinkTBMQueue :: MonadIO m => TBMQueue a -> Sink a m ()
+sinkTBMQueue q = ConduitM src
+  where src = sink
+        sink =  NeedInput push close
+        push input = PipeM ((liftSTM $ writeTBMQueue q input)
+                            >> (return $ NeedInput push close))
+        close _ = do liftSTM $ closeTBMQueue q
+                     return ()
+
+
 liftSTM :: forall (m :: * -> *) a. MonadIO m => STM a -> m a
 liftSTM = liftIO . atomically
-
