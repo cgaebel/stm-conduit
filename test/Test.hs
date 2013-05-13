@@ -13,6 +13,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent
 import Control.Concurrent.STM
+import Control.Concurrent.STM.TMQueue
 import Data.Conduit
 import Data.Conduit.List as CL
 import Data.Conduit.TMChan
