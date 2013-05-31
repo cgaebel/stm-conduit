@@ -24,7 +24,7 @@ Library
         base         == 4.*
       , transformers >= 0.2 && <= 0.4
       , stm          == 2.4.*
-      , stm-chans    == 2.0.*
+      , stm-chans    >= 2.0 && < 3.1
       , conduit      == 1.0.*
       , resourcet    >= 0.3 && < 0.5
 
@@ -48,7 +48,7 @@ test-suite stm-conduit-tests
       , stm-conduit
       , conduit
       , transformers
-      , stm-chans == 2.0.*
+      , stm-chans
   
 source-repository head
     type:     git
