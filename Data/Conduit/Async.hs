@@ -29,12 +29,16 @@ buffer :: (MonadBaseControl IO m, MonadIO m)
 buffer size input output = do
     chan <- liftIO $ newTBQueueIO size
     control $ \runInIO ->
-        withAsync (runInIO $ input $$ mapM_ (send chan)) $ \input' ->
+        withAsync (runInIO $ sender chan) $ \input' ->
             withAsync (runInIO $ recv chan $$ output) $ \output' -> do
                 link2 input' output'
                 wait output'
   where
-    send chan = liftIO . atomically . writeTBQueue chan . Just
+    send chan = liftIO . atomically . writeTBQueue chan
+
+    sender chan = do
+        input $$ mapM_ (send chan . Just)
+        send chan Nothing
 
     recv chan = do
         mx <- liftIO $ atomically $ readTBQueue chan
