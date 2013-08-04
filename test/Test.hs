@@ -16,6 +16,7 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TMQueue
 import Data.Conduit
 import Data.Conduit.List as CL
+import Data.Conduit.Async
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
 
@@ -28,7 +29,8 @@ tests = [
                 , testCase "simpleList using TMQueue" test_simpleMQueue
             ],
         testGroup "Bug fixes" [
-                testCase "multipleWriters" test_multipleWriters
+                  testCase "multipleWriters" test_multipleWriters
+                , testCase "asyncOperator" test_asyncOperator
             ]
     ]
 
@@ -62,3 +64,11 @@ test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10
                                                             ] 3
                           xs <- runResourceT $ ms $$ consume
                           liftIO $ assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
+
+test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
+                        assertEqual ("for the sum of 1 to " ++ show n) sum sum'
+                        sum'' <- CL.sourceList [1..n] $$& CL.fold (+) 0
+                        assertEqual "for the sum computed with the $$ and the $$&" sum' sum''
+    where
+        n = 100
+        sum = n * (n+1) / 2
