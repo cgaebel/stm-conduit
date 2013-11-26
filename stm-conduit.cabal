@@ -30,8 +30,18 @@ Library
       , resourcet     >= 0.3 && < 0.5
       , async         >= 2.0.1
       , monad-control >= 0.3.2
+      , monad-loops   >= 0.4.2
+      , lifted-base   >= 0.2.1
+      , lifted-async  >= 0.1
 
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
+    other-extensions:
+      Rank2Types
+      RankNTypes
+      KindSignatures
+      NoMonomorphismRestriction
+      FlexibleContexts
+      TupleSections
 
 test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
