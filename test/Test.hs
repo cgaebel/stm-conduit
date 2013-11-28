@@ -9,6 +9,7 @@ import Test.Framework.Providers.QuickCheck2 (testProperty)
 import Test.QuickCheck
 import Test.HUnit
 
+import qualified Control.Monad as Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Concurrent
@@ -27,6 +28,10 @@ tests = [
                   testCase "simpleList using TMChan" test_simpleList
                 , testCase "simpleList using TQueue" test_simpleQueue
                 , testCase "simpleList using TMQueue" test_simpleMQueue
+            ],
+        testGroup "Async functions" [
+                  testCase "buffer" test_buffer
+                , testCase "gatherFrom" test_gatherFrom
             ],
         testGroup "Bug fixes" [
                   testCase "multipleWriters" test_multipleWriters
@@ -72,3 +77,17 @@ test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
     where
         n = 100
         sum = n * (n+1) / 2
+
+test_buffer = do
+    sum' <- buffer 128 (CL.sourceList [1..100]) (CL.fold (+) 0)
+    assertEqual "sum computed using buffer" sum' 5050
+
+test_gatherFrom = do
+    sum' <- gatherFrom 128 gen $$ CL.fold (+) 0
+    assertEqual "sum computed using gatherFrom" sum' 5050
+  where
+    gen queue = Monad.void $ Monad.foldM f queue [1..100]
+      where
+        f q x = do
+            atomically $ writeTBQueue q x
+            return q
