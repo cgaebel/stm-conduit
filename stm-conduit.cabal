@@ -20,7 +20,7 @@ Library
         Data.Conduit.Async
         Data.Conduit.TMChan
         Data.Conduit.TQueue
-    
+
     build-depends:
         base          == 4.*
       , transformers  >= 0.2 && <= 0.4
@@ -35,13 +35,6 @@ Library
       , lifted-async  >= 0.1
 
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
-    other-extensions:
-      Rank2Types
-      RankNTypes
-      KindSignatures
-      NoMonomorphismRestriction
-      FlexibleContexts
-      TupleSections
 
 test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
@@ -62,7 +55,7 @@ test-suite stm-conduit-tests
       , conduit
       , transformers
       , stm-chans
-  
+
 source-repository head
     type:     git
     location: git://github.com/wowus/stm-conduit.git

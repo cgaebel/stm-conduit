@@ -1,13 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RankNTypes #-}
 
 -- | * Introduction
 --
 --   Contains a combinator for concurrently joining a producer and a consumer,
 --   such that the producer may continue to produce (up to the queue size) as
 --   the consumer is concurrently consuming.
-module Data.Conduit.Async where
+module Data.Conduit.Async ( buffer
+                          , ($$&)
+                          , gatherFrom
+                          ) where
 
 import Control.Applicative
 import Control.Concurrent.Async.Lifted
