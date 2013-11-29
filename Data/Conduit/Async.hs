@@ -10,6 +10,7 @@
 module Data.Conduit.Async ( buffer
                           , ($$&)
                           , gatherFrom
+                          , drainTo
                           ) where
 
 import Control.Applicative
