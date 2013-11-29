@@ -32,6 +32,7 @@ tests = [
         testGroup "Async functions" [
                   testCase "buffer" test_buffer
                 , testCase "gatherFrom" test_gatherFrom
+                , testCase "drainTo" test_drainTo
             ],
         testGroup "Bug fixes" [
                   testCase "multipleWriters" test_multipleWriters
@@ -91,3 +92,13 @@ test_gatherFrom = do
         f q x = do
             atomically $ writeTBQueue q x
             return q
+
+test_drainTo = do
+    sum' <- CL.sourceList [1..100] $$ drainTo 128 (go 0)
+    assertEqual "sum computed using drainTo" sum' 5050
+  where
+    go acc queue = do
+        mres <- atomically $ readTBQueue queue
+        case mres of
+            Nothing  -> return acc
+            Just res -> go (acc + res) queue

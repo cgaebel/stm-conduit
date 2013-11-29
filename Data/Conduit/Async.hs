@@ -83,3 +83,31 @@ gatherFrom size scatter = do
             Just (Left e)  -> liftIO $ throwIO (e :: SomeException)
             Just (Right r) -> return r
             Nothing        -> gather worker chan
+
+-- | Drain input values into an asynchronous action in the base monad via a
+--   bounded 'TBQueue'.  This is effectively the dual of 'gatherFrom'.
+drainTo :: (MonadIO m, MonadBaseControl IO m)
+        => Int                        -- ^ Size of the queue to create
+        -> (TBQueue (Maybe i) -> m r)  -- ^ Action to consume input values
+        -> Consumer i m r
+drainTo size gather = do
+    chan   <- liftIO $ newTBQueueIO size
+    worker <- lift $ async (gather chan)
+    lift . restoreM =<< scatter worker chan
+  where
+    scatter worker chan = do
+        mval <- await
+        (mx, action) <- liftIO $ atomically $ do
+            mres <- pollSTM worker
+            case mres of
+                Just (Left e)  ->
+                    return (Nothing, liftIO $ throwIO (e :: SomeException))
+                Just (Right r) ->
+                    return (Just r, return ())
+                Nothing        -> do
+                    writeTBQueue chan mval
+                    return (Nothing, return ())
+        action
+        case mx of
+            Just x  -> return x
+            Nothing -> scatter worker chan
