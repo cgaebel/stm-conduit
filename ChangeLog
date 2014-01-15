@@ -1,0 +1,7 @@
+2.2
+---
+* Changed the sink* family. Now it takes additional boolean argument that
+specifies if channel should be closed. Old behavior can be archived by
+using 'True'.
+
+* Documentation improved.

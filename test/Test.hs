@@ -41,7 +41,7 @@ tests = [
     ]
 
 test_simpleList = do chan <- atomically $ newTMChan
-                     forkIO . runResourceT $ sourceList testList $$ sinkTMChan chan
+                     forkIO . runResourceT $ sourceList testList $$ sinkTMChan chan True
                      lst' <- runResourceT $ sourceTMChan chan $$ consume
                      assertEqual "for the numbers [1..10000]," testList lst'
                      closed <- atomically $ isClosedTMChan chan
@@ -57,7 +57,7 @@ test_simpleQueue = do q <- atomically $ newTQueue
         testList = [1..10000]
 
 test_simpleMQueue = do q <- atomically $ newTMQueue
-                       forkIO . runResourceT $ sourceList testList $$ sinkTMQueue q
+                       forkIO . runResourceT $ sourceList testList $$ sinkTMQueue q True
                        lst' <- runResourceT $ sourceTMQueue q $$ consume
                        assertEqual "for the numbers [1..10000]," testList lst'
                        closed <- atomically $ isClosedTMQueue q
