@@ -111,16 +111,20 @@ sourceTMChan ch = chanSource ch readTMChan closeTMChan
 
 -- | A simple wrapper around a TBMChan. As data is pushed into the sink, it
 --   will magically begin to appear in the channel. If the channel is full,
---   the sink will block until space frees up. Boolean argument is used to
---   specify if channel should be closed when the sink is closed.
-sinkTBMChan :: MonadIO m => TBMChan a -> Bool -> Sink a m ()
+--   the sink will block until space frees up.
+sinkTBMChan :: MonadIO m
+            => TBMChan a
+            -> Bool -- ^ Should the channel be closed when the sink is closed?
+            -> Sink a m ()
 sinkTBMChan ch close = chanSink ch writeTBMChan (when close . closeTBMChan)
 {-# INLINE sinkTBMChan #-}
 
 -- | A simple wrapper around a TMChan. As data is pushed into this sink, it
---   will magically begin to appear in the channel. Boolean argument is used
---   to specify if channel should be closed when the sink is closed.
-sinkTMChan :: MonadIO m => TMChan a -> Bool -> Sink a m ()
+--   will magically begin to appear in the channel.
+sinkTMChan :: MonadIO m
+           => TMChan a
+           -> Bool -- ^ Should the channel be closed when the sink is closed?
+           -> Sink a m ()
 sinkTMChan ch close = chanSink ch writeTMChan (when close . closeTMChan)
 {-# INLINE sinkTMChan #-}
 
@@ -131,6 +135,7 @@ modifyTVar'' :: TVar a -> (a -> a) -> STM a
 modifyTVar'' tv f = do x <- f <$> readTVar tv
                        writeTVar tv x
                        return x
+
 liftSTM :: forall (m :: * -> *) a. MonadIO m => STM a -> m a
 liftSTM = liftIO . atomically
 

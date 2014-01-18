@@ -112,9 +112,11 @@ sourceTMQueue q = ConduitM src
                    return ()
 
 -- | A simple wrapper around a "TMQueue". As data is pushed into this sink, it
---   will magically begin to appear in the queue. Boolean argument is used
---   to specify if queue should be closed when the sink is closed.
-sinkTMQueue :: MonadIO m => TMQueue a -> Bool -> Sink a m ()
+--   will magically begin to appear in the queue.
+sinkTMQueue :: MonadIO m
+            => TMQueue a
+            -> Bool -- ^ Should the queue be closed when the sink is closed?
+            -> Sink a m ()
 sinkTMQueue q shouldClose = ConduitM src
   where src = sink
         sink =  NeedInput push close
@@ -137,9 +139,11 @@ sourceTBMQueue q = ConduitM src
                    return ()
 
 -- | A simple wrapper around a "TBMQueue". As data is pushed into this sink, it
---   will magically begin to appear in the queue. Boolean argument is used
---   to specify if queue should be closed when the sink is closed.
-sinkTBMQueue :: MonadIO m => TBMQueue a -> Bool -> Sink a m ()
+--   will magically begin to appear in the queue.
+sinkTBMQueue :: MonadIO m
+             => TBMQueue a
+             -> Bool -- ^ Should the queue be closed when the sink is closed?
+             -> Sink a m ()
 sinkTBMQueue q shouldClose = ConduitM src
   where src = sink
         sink =  NeedInput push close
