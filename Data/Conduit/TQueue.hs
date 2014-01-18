@@ -16,8 +16,11 @@
 --   Here is short description of data structures:
 --     
 --     * TQueue   - unbounded infinite queue
+--
 --     * TBQueue  - bounded infinite queue
+--
 --     * TMQueue  - unbounded finite (closable) queue
+--
 --     * TBMQueue - bounded finite (closable) queue
 --
 -- Caveats
@@ -29,16 +32,19 @@
 
 module Data.Conduit.TQueue
   ( -- * Connectors
-    -- ** TQueue connectors 
+    -- ** Infinite queues
+    -- $inifinite
+    -- *** TQueue connectors
     sourceTQueue
   , sinkTQueue
-    -- ** TBQueue connectors
+    -- *** TBQueue connectors
   , sourceTBQueue
   , sinkTBQueue
-    -- ** TMQueue connectors
+    -- ** Closable queues
+    -- *** TMQueue connectors
   , sourceTMQueue
   , sinkTMQueue
-    -- ** TBMQueue connectors
+    -- *** TBMQueue connectors
   , sourceTBMQueue
   , sinkTBMQueue
   , module Control.Concurrent.STM.TQueue
@@ -48,12 +54,13 @@ import Control.Concurrent.STM
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent.STM.TBMQueue
 import Control.Concurrent.STM.TMQueue
+import Control.Monad
 import Control.Monad.IO.Class
 import Data.Conduit
 import Data.Conduit.Internal
 
-
-
+-- | A simple wrapper around a "TQueue". As data is pushed into the queue, the
+--   source will read it and pass it down the conduit pipeline.
 sourceTQueue :: MonadIO m => TQueue a -> Source m a
 sourceTQueue q = ConduitM src
   where src = PipeM pull
@@ -61,6 +68,8 @@ sourceTQueue q = ConduitM src
                   return $ HaveOutput src close x
         close = return ()
 
+-- | A simple wrapper around a "TQueue". As data is pushed into this sink, it
+--   will magically begin to appear in the queue.
 sinkTQueue :: MonadIO m => TQueue a -> Sink a m ()
 sinkTQueue q = ConduitM src
   where src        = sink
@@ -69,6 +78,8 @@ sinkTQueue q = ConduitM src
                             >> (return $ NeedInput push close))
         close _    = return ()
 
+-- | A simple wrapper around a "TBQueue". As data is pushed into the queue, the
+--   source will read it and pass it down the conduit pipeline.
 sourceTBQueue :: MonadIO m => TBQueue a -> Source m a
 sourceTBQueue q = ConduitM src
   where src = PipeM pull
@@ -76,6 +87,9 @@ sourceTBQueue q = ConduitM src
                   return $ HaveOutput src close x
         close = return ()
 
+-- | A simple wrapper around a "TBQueue". As data is pushed into this sink, it
+--   will magically begin to appear in the queue. Boolean argument is used
+--   to specify if queue should be closed when the sink is closed.
 sinkTBQueue :: MonadIO m => TBQueue a -> Sink a m ()
 sinkTBQueue q = ConduitM src
   where src        = sink
@@ -84,6 +98,9 @@ sinkTBQueue q = ConduitM src
                             >> (return $ NeedInput push close))
         close _    = return ()
 
+-- | A simple wrapper around a "TMQueue". As data is pushed into the queue, the
+--   source will read it and pass it down the conduit pipeline. When the
+--   queue is closed, the source will close also.
 sourceTMQueue :: MonadIO m => TMQueue a -> Source m a
 sourceTMQueue q = ConduitM src
   where src = PipeM pull
@@ -94,15 +111,23 @@ sourceTMQueue q = ConduitM src
         close = do liftSTM $ closeTMQueue q
                    return ()
 
-sinkTMQueue :: MonadIO m => TMQueue a -> Sink a m ()
-sinkTMQueue q = ConduitM src
+-- | A simple wrapper around a "TMQueue". As data is pushed into this sink, it
+--   will magically begin to appear in the queue.
+sinkTMQueue :: MonadIO m
+            => TMQueue a
+            -> Bool -- ^ Should the queue be closed when the sink is closed?
+            -> Sink a m ()
+sinkTMQueue q shouldClose = ConduitM src
   where src = sink
         sink =  NeedInput push close
         push input = PipeM ((liftSTM $ writeTMQueue q input)
                             >> (return $ NeedInput push close))
-        close _ = do liftSTM $ closeTMQueue q
+        close _ = do when shouldClose (liftSTM $ closeTMQueue q)
                      return ()
 
+-- | A simple wrapper around a "TBMQueue". As data is pushed into the queue, the
+--   source will read it and pass it down the conduit pipeline. When the
+--   queue is closed, the source will close also.
 sourceTBMQueue :: MonadIO m => TBMQueue a -> Source m a
 sourceTBMQueue q = ConduitM src
   where src = PipeM pull
@@ -113,15 +138,25 @@ sourceTBMQueue q = ConduitM src
         close = do liftSTM $ closeTBMQueue q
                    return ()
 
-sinkTBMQueue :: MonadIO m => TBMQueue a -> Sink a m ()
-sinkTBMQueue q = ConduitM src
+-- | A simple wrapper around a "TBMQueue". As data is pushed into this sink, it
+--   will magically begin to appear in the queue.
+sinkTBMQueue :: MonadIO m
+             => TBMQueue a
+             -> Bool -- ^ Should the queue be closed when the sink is closed?
+             -> Sink a m ()
+sinkTBMQueue q shouldClose = ConduitM src
   where src = sink
         sink =  NeedInput push close
         push input = PipeM ((liftSTM $ writeTBMQueue q input)
                             >> (return $ NeedInput push close))
-        close _ = do liftSTM $ closeTBMQueue q
+        close _ = do when shouldClose (liftSTM $ closeTBMQueue q)
                      return ()
 
 
 liftSTM :: forall (m :: * -> *) a. MonadIO m => STM a -> m a
 liftSTM = liftIO . atomically
+
+-- $infinite
+-- It's impossible to close infinite queues but they work slightly faster,
+-- so it's reasonable to use them inside infinite computations for
+-- performance reasons.
