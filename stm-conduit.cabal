@@ -58,6 +58,7 @@ test-suite stm-conduit-tests
       , conduit
       , transformers
       , stm-chans
+      , resourcet
 
 source-repository head
     type:     git
