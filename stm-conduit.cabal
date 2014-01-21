@@ -22,17 +22,20 @@ Library
         Data.Conduit.TQueue
 
     build-depends:
-        base          == 4.*
-      , transformers  >= 0.2 && <= 0.4
-      , stm           == 2.4.*
-      , stm-chans     >= 2.0 && < 3.1
-      , conduit       == 1.0.*
-      , resourcet     >= 0.3 && < 0.5
-      , async         >= 2.0.1
-      , monad-control >= 0.3.2
-      , monad-loops   >= 0.4.2
-      , lifted-base   >= 0.2.1
-      , lifted-async  >= 0.1
+        base           == 4.*
+      , transformers   >= 0.2 && <= 0.4
+      , stm            == 2.4.*
+      , stm-chans      >= 2.0 && < 3.1
+      , cereal         >= 0.4.0.1
+      , cereal-conduit >= 0.7.2
+      , conduit        == 1.0.*
+      , directory      >= 1.2
+      , resourcet      >= 0.3 && < 0.5
+      , async          >= 2.0.1
+      , monad-control  >= 0.3.2
+      , monad-loops    >= 0.4.2
+      , lifted-base    >= 0.2.1
+      , lifted-async   >= 0.1
 
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
 
