@@ -21,6 +21,7 @@ import Data.Conduit.List as CL
 import Data.Conduit.Async
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
+import System.Directory
 
 main = defaultMain tests
 
@@ -86,7 +87,8 @@ test_buffer = do
     assertEqual "sum computed using buffer" sum' 5050
 
 test_bufferToFile = do
-    sum' <- runResourceT $ bufferToFile 16 (Just 5) "/tmp" (CL.sourceList [1 :: Int .. 100]) (CL.fold (+) 0)
+    tempDir <- getTemporaryDirectory
+    sum' <- runResourceT $ bufferToFile 16 (Just 5) tempDir (CL.sourceList [1 :: Int .. 100]) (CL.fold (+) 0)
     assertEqual "sum computed using bufferToFile" sum' 5050
 
 test_gatherFrom = do
