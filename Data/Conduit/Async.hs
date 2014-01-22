@@ -27,9 +27,9 @@ import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.Resource
 import           Data.Conduit
-import qualified Data.Conduit.Binary as C
+import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Cereal as C
-import qualified Data.Conduit.List as C
+import qualified Data.Conduit.List as CL
 import           Data.Foldable (forM_)
 import           Data.Serialize as Cereal
 import           System.Directory (removeFile)
@@ -56,7 +56,7 @@ buffer size input output = do
     send chan = liftIO . atomically . writeTBQueue chan
 
     sender chan = do
-        input $$ C.mapM_ (send chan . Just)
+        input $$ CL.mapM_ (send chan . Just)
         send chan Nothing
 
     recv chan = do
@@ -127,7 +127,7 @@ bufferToFile memorySize fileMax tempDir input output = do
             filePath <- newEmptyTMVar
             writeTChan restore $ do
                 (path, key) <- liftIO $ atomically $ takeTMVar filePath
-                C.sourceFile path $= do
+                CB.sourceFile path $= do
                     C.conduitGet Cereal.get
                     liftIO $ atomically $
                         modifyTVar slotsFree (fmap (+ len))
@@ -142,8 +142,8 @@ bufferToFile memorySize fileMax tempDir input output = do
                             (openTempFile tempDir "conduit.bin")
                             (\(path, h) -> hClose h >> removeFile path)
                         liftIO $ do
-                            C.sourceList xs $= C.conduitPut put
-                                $$ C.sinkHandle h
+                            CL.sourceList xs $= C.conduitPut put
+                                $$ CB.sinkHandle h
                             hClose h
                             atomically $ putTMVar filePath (path, key)
 
@@ -156,7 +156,7 @@ bufferToFile memorySize fileMax tempDir input output = do
                     Nothing -> do
                         xs <- exhaust chan
                         isDone <- readTVar done
-                        return (C.sourceList xs, isDone)
+                        return (CL.sourceList xs, isDone)
             src
             unless exit loop
 
