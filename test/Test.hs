@@ -12,6 +12,7 @@ import Test.HUnit
 import qualified Control.Monad as Monad
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
+import Control.Monad.Trans.Resource (runResourceT)
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMQueue
@@ -20,6 +21,7 @@ import Data.Conduit.List as CL
 import Data.Conduit.Async
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
+import System.Directory
 
 main = defaultMain tests
 
@@ -31,6 +33,7 @@ tests = [
             ],
         testGroup "Async functions" [
                   testCase "buffer" test_buffer
+                , testCase "bufferToFile" test_bufferToFile
                 , testCase "gatherFrom" test_gatherFrom
                 , testCase "drainTo" test_drainTo
             ],
@@ -82,6 +85,11 @@ test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
 test_buffer = do
     sum' <- buffer 128 (CL.sourceList [1..100]) (CL.fold (+) 0)
     assertEqual "sum computed using buffer" sum' 5050
+
+test_bufferToFile = do
+    tempDir <- getTemporaryDirectory
+    sum' <- runResourceT $ bufferToFile 16 (Just 5) tempDir (CL.sourceList [1 :: Int .. 100]) (CL.fold (+) 0)
+    assertEqual "sum computed using bufferToFile" sum' 5050
 
 test_gatherFrom = do
     sum' <- gatherFrom 128 gen $$ CL.fold (+) 0
