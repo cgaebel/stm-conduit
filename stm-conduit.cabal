@@ -29,7 +29,7 @@ Library
       , cereal         >= 0.4.0.1
       , cereal-conduit >= 0.7.2
       , conduit        == 1.0.*
-      , directory      >= 1.2
+      , directory      >= 1.1
       , resourcet      >= 0.3 && < 0.5
       , async          >= 2.0.1
       , monad-control  >= 0.3.2
