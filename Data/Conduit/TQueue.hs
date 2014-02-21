@@ -51,7 +51,6 @@ module Data.Conduit.TQueue
   , module Control.Concurrent.STM.TQueue
   ) where
 
-import Control.Arrow ((&&&))
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent.STM.TBMQueue
