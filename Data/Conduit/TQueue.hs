@@ -40,6 +40,7 @@ module Data.Conduit.TQueue
     -- *** TBQueue connectors
   , sourceTBQueue
   , sinkTBQueue
+  , entangledPair
     -- ** Closable queues
     -- *** TMQueue connectors
   , sourceTMQueue
@@ -97,6 +98,12 @@ sinkTBQueue q = ConduitM src
         push input = PipeM ((liftSTM $ writeTBQueue q input)
                             >> (return $ NeedInput push close))
         close _    = return ()
+
+-- | A convenience wrapper for creating a source and sink TBQueue of the given
+--   size at once, without exposing the underlying queue.
+entangledPair :: MonadIO m => Int -> m (Source m a, Sink a m ())
+entangledPair size = liftM (liftM2 (,) sourceTBQueue sinkTBQueue) $
+    liftIO $ atomically $ newTBQueue size
 
 -- | A simple wrapper around a "TMQueue". As data is pushed into the queue, the
 --   source will read it and pass it down the conduit pipeline. When the
