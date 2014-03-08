@@ -20,6 +20,7 @@ Library
         Data.Conduit.Async
         Data.Conduit.TMChan
         Data.Conduit.TQueue
+        Data.Conduit.Utils
 
     build-depends:
         base           == 4.*
@@ -38,6 +39,7 @@ Library
       , lifted-async   >= 0.1
 
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
+
 
 test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
