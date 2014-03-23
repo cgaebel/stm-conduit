@@ -1,6 +1,6 @@
 module Main ( main ) where
 
-import Data.List
+import Data.List (sort)
 
 import Test.Framework (defaultMain, testGroup)
 import Test.Framework.Providers.HUnit
@@ -10,10 +10,8 @@ import Test.QuickCheck
 import Test.HUnit
 
 import qualified Control.Monad as Monad
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Resource (runResourceT)
-import Control.Concurrent
+import Control.Concurrent (forkIO)
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMQueue
 import Data.Conduit
@@ -36,6 +34,7 @@ tests = [
                 , testCase "bufferToFile" test_bufferToFile
                 , testCase "gatherFrom" test_gatherFrom
                 , testCase "drainTo" test_drainTo
+                , testCase "mergeConduits" test_mergeConduits
             ],
         testGroup "Bug fixes" [
                   testCase "multipleWriters" test_multipleWriters
@@ -72,7 +71,7 @@ test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10
                                                             , sourceList ([11..20]::[Integer])
                                                             ] 3
                           xs <- runResourceT $ ms $$ consume
-                          liftIO $ assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
+                          assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
 
 test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
                         assertEqual ("for the sum of 1 to " ++ show n) sum sum'
@@ -110,3 +109,15 @@ test_drainTo = do
         case mres of
             Nothing  -> return acc
             Just res -> go (acc + res) queue
+
+test_mergeConduits = do merged <- runResourceT $ mergeConduits
+                                                    [ CL.map (* 2)
+                                                    , scanlConduit (+) 0
+                                                    ] 16
+                        let
+                          input = [1..10]
+                          expected = Prelude.map (2 *) input ++ Prelude.scanl (+) 0 input
+                        xs <- runResourceT $ sourceList ([1..10] :: [Integer]) $$ merged =$ consume
+                        assertEqual "merged results" (sort expected) (sort xs)
+  where
+    scanlConduit f b = yield b >> CL.scanl (\a -> (\x -> (x, x)) . f a) b

@@ -49,6 +49,8 @@ module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
                            -- * Parallel Combinators
                            , (>=<)
                            , mergeSources
+                           , (<=>)
+                           , mergeConduits
                            ) where
 
 import Control.Applicative
@@ -60,7 +62,7 @@ import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.STM.TMChan
 
 import Data.Conduit
-import Data.Conduit.Internal
+import Data.Conduit.Internal (Pipe (..), ConduitM (..))
 
 chanSource 
     :: MonadIO m
@@ -171,3 +173,41 @@ mergeSources sx bound = do c <- liftSTM $ newTBMChan bound
                            mapM_ (\s -> resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount) sx
                            return $ sourceTBMChan c
 
+-- | Combines two conduits with unbounded channels, creating a new conduit
+--   which pulls data from a mix of the two: whichever produces first.
+--
+--   The order of the new conduit's output is undefined, but it will be some
+--   combination of the two given conduits.
+(<=>) :: (MonadIO m, MonadBaseControl IO m)
+      => Show i
+      => Conduit i (ResourceT m) i
+      -> Conduit i (ResourceT m) i
+      -> ResourceT m (Conduit i (ResourceT m) i)
+sa <=> sb = mergeConduits [ sa, sb ] 16
+{-# INLINE (<=>) #-}
+
+-- | Provide an input across several conduits, putting them all into a bounded
+--   channel. Returns a conduit which can be pulled from to pull from all the
+--   given conduits in a first-come-first-serve basis.
+--
+--   The order of the new conduits's outputs is undefined, but it will be some
+--   combination of the given conduits.
+mergeConduits :: (MonadIO m, MonadBaseControl IO m)
+              => [Conduit i (ResourceT m) o] -- ^ The conduits to merge.
+              -> Int -- ^ The bound for the channels.
+              -> ResourceT m (Conduit i (ResourceT m) o)
+mergeConduits conduits bound = do
+        let len = length conduits
+        refcount <- liftSTM $ newTVar len
+        iChannels <- replicateM len $ liftSTM $ newTBMChan bound
+        oChannel <- liftSTM $ newTBMChan bound
+        forM_ (zip iChannels conduits)
+            $ \(iChannel, conduit) -> resourceForkIO
+                $  sourceTBMChan iChannel
+                $$ conduit
+                =$ chanSink oChannel (writeTBMChans . (:[])) (decRefcount refcount)
+        return
+            $  toConsumer (chanSink iChannels writeTBMChans (mapM_ closeTBMChan))
+            >> toProducer (sourceTBMChan oChannel)
+  where
+    writeTBMChans channels a = forM_ channels $ \c -> writeTBMChan c a
