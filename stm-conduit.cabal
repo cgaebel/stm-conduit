@@ -1,5 +1,5 @@
 Name:                stm-conduit
-Version:             2.4.0
+Version:             2.4.1
 Synopsis:            Introduces conduits to channels, and promotes using
                      conduits concurrently.
 Description:         Provides two simple conduit wrappers around STM
@@ -24,7 +24,7 @@ Library
 
     build-depends:
         base           == 4.*
-      , transformers   >= 0.2 && <= 0.4
+      , transformers   >= 0.2 && < 0.5
       , stm            == 2.4.*
       , stm-chans      >= 2.0 && < 3.1
       , cereal         >= 0.4.0.1
