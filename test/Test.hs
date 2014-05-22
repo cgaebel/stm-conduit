@@ -78,12 +78,13 @@ test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
                         sum'' <- CL.sourceList [1..n] $$& CL.fold (+) 0
                         assertEqual "for the sum computed with the $$ and the $$&" sum' sum''
     where
+        n :: Integer
         n = 100
-        sum = n * (n+1) / 2
+        sum = (n * (n+1)) `div` 2
 
 test_buffer = do
     sum' <- buffer 128 (CL.sourceList [1..100]) (CL.fold (+) 0)
-    assertEqual "sum computed using buffer" sum' 5050
+    assertEqual "sum computed using buffer" sum' (5050 :: Integer)
 
 test_bufferToFile = do
     tempDir <- getTemporaryDirectory
@@ -110,14 +111,13 @@ test_drainTo = do
             Nothing  -> return acc
             Just res -> go (acc + res) queue
 
-test_mergeConduits = do merged <- runResourceT $ mergeConduits
-                                                    [ CL.map (* 2)
-                                                    , scanlConduit (+) 0
-                                                    ] 16
-                        let
-                          input = [1..10]
-                          expected = Prelude.map (2 *) input ++ Prelude.scanl (+) 0 input
-                        xs <- runResourceT $ sourceList ([1..10] :: [Integer]) $$ merged =$ consume
-                        assertEqual "merged results" (sort expected) (sort xs)
-  where
-    scanlConduit f b = yield b >> CL.scanl (\a -> (\x -> (x, x)) . f a) b
+test_mergeConduits = do
+    merged <- runResourceT $ mergeConduits
+                [ CL.map (* 2)
+                , Monad.void $ CL.scan (+) 0
+                ] 16
+    let
+      input = [1..10]
+      expected = Prelude.map (2 *) input ++ tail (Prelude.scanl (+) 0 input)
+    xs <- runResourceT $ sourceList ([1..10] :: [Integer]) $$ merged =$ consume
+    assertEqual "merged results" (sort expected) (sort xs)
