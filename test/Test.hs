@@ -70,7 +70,7 @@ test_simpleMQueue = do q <- atomically $ newTMQueue
 test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10]::[Integer])
                                                             , sourceList ([11..20]::[Integer])
                                                             ] 3
-                          xs <- runResourceT $ ms $$ consume
+                          xs <- ms $$ consume
                           assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
 
 test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0
@@ -119,5 +119,5 @@ test_mergeConduits = do
     let
       input = [1..10]
       expected = Prelude.map (2 *) input ++ tail (Prelude.scanl (+) 0 input)
-    xs <- runResourceT $ sourceList ([1..10] :: [Integer]) $$ merged =$ consume
+    xs <- sourceList ([1..10] :: [Integer]) $$ merged =$ consume
     assertEqual "merged results" (sort expected) (sort xs)
