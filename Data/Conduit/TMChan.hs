@@ -56,6 +56,7 @@ module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
 import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class ( liftIO, MonadIO )
+import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
@@ -143,10 +144,10 @@ liftSTM = liftIO . atomically
 --
 --   The order of the new source's data is undefined, but it will be some
 --   combination of the two given sources.
-(>=<) :: (MonadIO m, MonadBaseControl IO m)
-      => Source (ResourceT m) a
-      -> Source (ResourceT m) a
-      -> ResourceT m (Source (ResourceT m) a)
+(>=<) :: (MonadResource mi, MonadIO mo, MonadBaseControl IO mi)
+      => Source mi a
+      -> Source mi a
+      -> mi (Source mo a)
 sa >=< sb = mergeSources [ sa, sb ] 16
 {-# INLINE (>=<) #-}
 
@@ -160,14 +161,15 @@ decRefcount tv chan = do n <- modifyTVar'' tv (subtract 1)
 --   sources in a first-come-first-serve basis.
 --
 --   The order of the new source's data is undefined, but it will be some
---   combination of the given sources.
-mergeSources :: (MonadIO m, MonadBaseControl IO m)
-             => [Source (ResourceT m) a] -- ^ The sources to merge.
+--   combination of the given sources. The monad of the resultant source
+--   (@mo@) is independent of the monads of the input sources (@mi@).
+mergeSources :: (MonadResource mi, MonadIO mo, MonadBaseControl IO mi)
+             => [Source mi a] -- ^ The sources to merge.
              -> Int -- ^ The bound of the intermediate channel.
-             -> ResourceT m (Source (ResourceT m) a)
+             -> mi (Source mo a)
 mergeSources sx bound = do c <- liftSTM $ newTBMChan bound
                            refcount <- liftSTM . newTVar $ length sx
-                           mapM_ (\s -> resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount) sx
+                           mapM_ (\s -> runResourceT $ resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount) (map (transPipe lift) sx)
                            return $ sourceTBMChan c
 
 -- | Combines two conduits with unbounded channels, creating a new conduit
@@ -175,11 +177,11 @@ mergeSources sx bound = do c <- liftSTM $ newTBMChan bound
 --
 --   The order of the new conduit's output is undefined, but it will be some
 --   combination of the two given conduits.
-(<=>) :: (MonadIO m, MonadBaseControl IO m)
+(<=>) :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
       => Show i
-      => Conduit i (ResourceT m) i
-      -> Conduit i (ResourceT m) i
-      -> ResourceT m (Conduit i (ResourceT m) i)
+      => Conduit i (ResourceT mi) i
+      -> Conduit i (ResourceT mi) i
+      -> ResourceT mi (Conduit i mo i)
 sa <=> sb = mergeConduits [ sa, sb ] 16
 {-# INLINE (<=>) #-}
 
@@ -188,11 +190,12 @@ sa <=> sb = mergeConduits [ sa, sb ] 16
 --   given conduits in a first-come-first-serve basis.
 --
 --   The order of the new conduits's outputs is undefined, but it will be some
---   combination of the given conduits.
-mergeConduits :: (MonadIO m, MonadBaseControl IO m)
-              => [Conduit i (ResourceT m) o] -- ^ The conduits to merge.
+--   combination of the given conduits. The monad of the resultant conduit
+--   (@mo@) is independent of the monads of the input conduits (@mi@).
+mergeConduits :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
+              => [Conduit i (ResourceT mi) o] -- ^ The conduits to merge.
               -> Int -- ^ The bound for the channels.
-              -> ResourceT m (Conduit i (ResourceT m) o)
+              -> ResourceT mi (Conduit i mo o)
 mergeConduits conduits bound = do
         let len = length conduits
         refcount <- liftSTM $ newTVar len
