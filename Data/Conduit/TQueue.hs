@@ -58,46 +58,28 @@ import Control.Concurrent.STM.TMQueue
 import Control.Monad
 import Control.Monad.IO.Class
 import Data.Conduit
-import Data.Conduit.Internal
+import qualified Data.Conduit.List as CL
 
 -- | A simple wrapper around a "TQueue". As data is pushed into the queue, the
 --   source will read it and pass it down the conduit pipeline.
 sourceTQueue :: MonadIO m => TQueue a -> Source m a
-sourceTQueue q = ConduitM src
-  where src = PipeM pull
-        pull = do x <- liftSTM $ readTQueue q
-                  return $ HaveOutput src close x
-        close = return ()
+sourceTQueue q = forever $ liftSTM (readTQueue q) >>= yield
 
 -- | A simple wrapper around a "TQueue". As data is pushed into this sink, it
 --   will magically begin to appear in the queue.
 sinkTQueue :: MonadIO m => TQueue a -> Sink a m ()
-sinkTQueue q = ConduitM src
-  where src        = sink
-        sink       = NeedInput push close
-        push input = PipeM ((liftSTM $ writeTQueue q input)
-                            >> (return $ NeedInput push close))
-        close _    = return ()
+sinkTQueue q = CL.mapM_ (liftSTM . writeTQueue q)
 
 -- | A simple wrapper around a "TBQueue". As data is pushed into the queue, the
 --   source will read it and pass it down the conduit pipeline.
 sourceTBQueue :: MonadIO m => TBQueue a -> Source m a
-sourceTBQueue q = ConduitM src
-  where src = PipeM pull
-        pull = do x <- liftSTM $ readTBQueue q
-                  return $ HaveOutput src close x
-        close = return ()
+sourceTBQueue q = forever $ liftSTM (readTBQueue q) >>= yield
 
 -- | A simple wrapper around a "TBQueue". As data is pushed into this sink, it
 --   will magically begin to appear in the queue. Boolean argument is used
 --   to specify if queue should be closed when the sink is closed.
 sinkTBQueue :: MonadIO m => TBQueue a -> Sink a m ()
-sinkTBQueue q = ConduitM src
-  where src        = sink
-        sink       = NeedInput push close
-        push input = PipeM ((liftSTM $ writeTBQueue q input)
-                            >> (return $ NeedInput push close))
-        close _    = return ()
+sinkTBQueue q = CL.mapM_ (liftSTM . writeTBQueue q)
 
 -- | A convenience wrapper for creating a source and sink TBQueue of the given
 --   size at once, without exposing the underlying queue.
@@ -109,14 +91,15 @@ entangledPair size = liftM (liftM2 (,) sourceTBQueue sinkTBQueue) $
 --   source will read it and pass it down the conduit pipeline. When the
 --   queue is closed, the source will close also.
 sourceTMQueue :: MonadIO m => TMQueue a -> Source m a
-sourceTMQueue q = ConduitM src
-  where src = PipeM pull
-        pull = do mx <- liftSTM $ readTMQueue q
-                  case mx of
-                      Nothing -> return $ Done ()
-                      Just x -> return $ HaveOutput src close x
-        close = do liftSTM $ closeTMQueue q
-                   return ()
+sourceTMQueue q =
+    loop
+  where
+    loop = do
+        mx <- liftSTM $ readTMQueue q
+        case mx of
+            Nothing -> return ()
+            Just x -> yieldOr x close >> loop
+    close = liftSTM $ closeTMQueue q
 
 -- | A simple wrapper around a "TMQueue". As data is pushed into this sink, it
 --   will magically begin to appear in the queue.
@@ -124,26 +107,23 @@ sinkTMQueue :: MonadIO m
             => TMQueue a
             -> Bool -- ^ Should the queue be closed when the sink is closed?
             -> Sink a m ()
-sinkTMQueue q shouldClose = ConduitM src
-  where src = sink
-        sink =  NeedInput push close
-        push input = PipeM ((liftSTM $ writeTMQueue q input)
-                            >> (return $ NeedInput push close))
-        close _ = do when shouldClose (liftSTM $ closeTMQueue q)
-                     return ()
+sinkTMQueue q shouldClose = do
+    CL.mapM_ (liftSTM . writeTMQueue q)
+    when shouldClose (liftSTM $ closeTMQueue q)
 
 -- | A simple wrapper around a "TBMQueue". As data is pushed into the queue, the
 --   source will read it and pass it down the conduit pipeline. When the
 --   queue is closed, the source will close also.
 sourceTBMQueue :: MonadIO m => TBMQueue a -> Source m a
-sourceTBMQueue q = ConduitM src
-  where src = PipeM pull
-        pull = do mx <- liftSTM $ readTBMQueue q
-                  case mx of
-                      Nothing -> return $ Done ()
-                      Just x -> return $ HaveOutput src close x
-        close = do liftSTM $ closeTBMQueue q
-                   return ()
+sourceTBMQueue q =
+    loop
+  where
+    loop = do
+        mx <- liftSTM $ readTBMQueue q
+        case mx of
+            Nothing -> return ()
+            Just x -> yieldOr x close >> loop
+    close = liftSTM $ closeTBMQueue q
 
 -- | A simple wrapper around a "TBMQueue". As data is pushed into this sink, it
 --   will magically begin to appear in the queue.
@@ -151,13 +131,9 @@ sinkTBMQueue :: MonadIO m
              => TBMQueue a
              -> Bool -- ^ Should the queue be closed when the sink is closed?
              -> Sink a m ()
-sinkTBMQueue q shouldClose = ConduitM src
-  where src = sink
-        sink =  NeedInput push close
-        push input = PipeM ((liftSTM $ writeTBMQueue q input)
-                            >> (return $ NeedInput push close))
-        close _ = do when shouldClose (liftSTM $ closeTBMQueue q)
-                     return ()
+sinkTBMQueue q shouldClose = do
+    CL.mapM_ (liftSTM . writeTBMQueue q)
+    when shouldClose (liftSTM $ closeTBMQueue q)
 
 
 liftSTM :: forall (m :: * -> *) a. MonadIO m => STM a -> m a
