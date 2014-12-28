@@ -16,6 +16,7 @@ module Data.Conduit.Async ( buffer
                           ) where
 
 import           Control.Applicative
+import qualified Control.Concurrent.Async as A
 import           Control.Concurrent.Async.Lifted
 import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TBChan
@@ -48,10 +49,10 @@ buffer :: (MonadBaseControl IO m, MonadIO m)
 buffer size input output = do
     chan <- liftIO $ newTBQueueIO size
     control $ \runInIO ->
-        withAsync (runInIO $ sender chan) $ \input' ->
-        withAsync (runInIO $ recv chan $$ output) $ \output' -> do
-            link2 input' output'
-            wait output'
+        A.withAsync (runInIO $ sender chan) $ \input' ->
+        A.withAsync (runInIO $ recv chan $$ output) $ \output' -> do
+            A.link2 input' output'
+            A.wait output'
   where
     send chan = liftIO . atomically . writeTBQueue chan
 
@@ -100,10 +101,10 @@ bufferToFile memorySize fileMax tempDir input output = do
         <*> newTVarIO fileMax
         <*> newTVarIO False
     control $ \runInIO ->
-        withAsync (runInIO $ sender context) $ \input' ->
-        withAsync (runInIO $ recv context $$ output) $ \output' -> do
-            link2 input' output'
-            wait output'
+        A.withAsync (runInIO $ sender context) $ \input' ->
+        A.withAsync (runInIO $ recv context $$ output) $ \output' -> do
+            A.link2 input' output'
+            A.wait output'
   where
     sender BufferContext {..} = do
         input $$ awaitForever $ \x -> join $ liftIO $ atomically $ do
