@@ -45,7 +45,7 @@ import           System.IO
 --   the net effect should be equivalent to not using buffer at all, save for
 --   the concurrent interleaving of effects.
 buffer :: (MonadBaseControl IO m, MonadIO m)
-       => Int -> Producer m a -> Consumer a m b -> m b
+       => Int -> Source m a -> Sink a m r -> m r
 buffer size input output = do
     chan <- liftIO $ newTBQueueIO size
     control $ \runInIO ->
@@ -70,8 +70,10 @@ buffer size input output = do
 --   any use of 'Data.Conduit.$$' with '$$&' and suddenly reap the benefit of
 --   concurrency, if your conduits were spending time waiting on each other.
 ($$&) :: (MonadIO m, MonadBaseControl IO m)
-      => Producer m a -> Consumer a m b -> m b
+      => Source m a -> Sink a m b -> m b
 ($$&) = buffer 64
+
+infixr 0 $$&
 
 data BufferContext m a = BufferContext
     { chan      :: TBChan a
