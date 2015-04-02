@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables, RankNTypes, FlexibleContexts #-}
+
 module Main ( main ) where
 
 import Data.List (sort)
@@ -11,7 +13,7 @@ import Test.HUnit
 
 import qualified Control.Monad as Monad
 import Control.Monad.Trans.Resource (runResourceT)
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, threadDelay)
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TMQueue
 import Data.Conduit
@@ -20,6 +22,7 @@ import Data.Conduit.Async
 import Data.Conduit.TMChan
 import Data.Conduit.TQueue
 import System.Directory
+import Conduit
 
 main = defaultMain tests
 
@@ -31,7 +34,10 @@ tests = [
             ],
         testGroup "Async functions" [
                   testCase "buffer" test_buffer
+                , testCase "multiple buffer" test_multi_buffer
                 , testCase "bufferToFile" test_bufferToFile
+                , testCase "multiple bufferToFile" test_multi_bufferToFile
+                , testCase "mixed buffer" test_mixed_buffer
                 , testCase "gatherFrom" test_gatherFrom
                 , testCase "drainTo" test_drainTo
                 , testCase "mergeConduits" test_mergeConduits
@@ -86,10 +92,40 @@ test_buffer = do
     sum' <- buffer 128 (CL.sourceList [1..100]) (CL.fold (+) 0)
     assertEqual "sum computed using buffer" sum' (5050 :: Integer)
 
+test_multi_buffer = do
+    sumDoubles <- CL.sourceList [1..100] $$& mapC (* 2) $=& CL.fold (+) 0
+    assertEqual "sum of doubles computed using two buffers" sumDoubles (10100 :: Integer)
+
+-- When we're testing file-buffering, we have to make sure to consume
+-- slowly enough to ensure the incoming data piles up enough to be
+-- flushed to disk..
+slowDown :: (MonadIO m) => Int -> Conduit x m x
+slowDown delay = awaitForever $ \x -> do
+  liftIO $ threadDelay delay
+  yield x
+
+aLot = 10000
+aLittle = 5000
+
 test_bufferToFile = do
     tempDir <- getTemporaryDirectory
-    sum' <- runResourceT $ bufferToFile 16 (Just 5) tempDir (CL.sourceList [1 :: Int .. 100]) (CL.fold (+) 0)
+    sum' <- runResourceT $ bufferToFile 16 (Just 25) tempDir (CL.sourceList [1 :: Int .. 100]) (slowDown aLittle $= CL.fold (+) 0)
     assertEqual "sum computed using bufferToFile" sum' 5050
+
+test_multi_bufferToFile = do
+    tempDir <- getTemporaryDirectory
+    sumDoubles <- let buf c = bufferToFile' 16 (Just 25) tempDir c -- "c" avoids monomorphism restriction
+                  in runResourceT $ runCConduit $ CL.sourceList [1 :: Int .. 100] `buf` (slowDown aLittle $= mapC (* 2)) `buf` (slowDown aLot $= CL.fold (+) 0)
+    assertEqual "sum of doubles computed using bufferToFile" sumDoubles 10100
+
+test_mixed_buffer = do
+    tempDir <- getTemporaryDirectory
+    sumDoubles <- let buf = bufferToFile' 16 (Just 25) tempDir
+                  in runResourceT $ CL.sourceList [1 :: Int .. 100] $$& mapC (* 2) `buf` (slowDown aLittle $= CL.fold (+) 0)
+    assertEqual "sum of doubles computed using mixed buffers" sumDoubles 10100
+    sumTriples <- let buf = bufferToFile' 16 (Just 25) tempDir
+                  in runResourceT $ CL.sourceList [1 :: Int .. 100] `buf` (slowDown aLittle $= mapC (* 3)) $$& CL.fold (+) 0
+    assertEqual "sum of triples computed using mixed buffers" sumTriples 15150
 
 test_gatherFrom = do
     sum' <- gatherFrom 128 gen $$ CL.fold (+) 0
