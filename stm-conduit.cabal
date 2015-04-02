@@ -47,6 +47,14 @@ Library
 
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
 
+test-suite stm-conduit-doctests
+    type:           exitcode-stdio-1.0
+    main-is:        DocTest.hs
+    ghc-options:    -threaded
+    hs-source-dirs: test/
+                    ./
+    build-depends:  base
+                  , doctest
 
 test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
