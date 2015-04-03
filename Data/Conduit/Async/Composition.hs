@@ -1,6 +1,8 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
@@ -59,7 +61,7 @@ import System.IO
 --
 -- >>> buffer 1 (CL.sourceList [1,2,3]) CL.consume
 -- [1,2,3]
-buffer :: (CCatable c1 c2, CRunnable (LeastCConduit c1 c2), RunConstraints (LeastCConduit c1 c2) m)
+buffer :: (CCatable c1 c2 c3, CRunnable c3, RunConstraints c3 m)
           => Int -- ^ Size of the bounded queue in memory.
           -> c1 () x m ()
           -> c2 x Void m r
@@ -93,7 +95,7 @@ buffer i c1 c2 = runCConduit (buffer' i c1 c2)
 --
 -- >>> CL.sourceList [1,2,3] $$& (mapC (*2) $= mapC (+1)) $=& CL.consume
 -- [3,5,7]
-($$&) :: (CCatable c1 c2, CRunnable (LeastCConduit c1 c2), RunConstraints (LeastCConduit c1 c2) m) => c1 () x m () -> c2 x Void m r -> m r
+($$&) :: (CCatable c1 c2 c3, CRunnable c3, RunConstraints c3 m) => c1 () x m () -> c2 x Void m r -> m r
 a $$& b = runCConduit (a =$=& b)
 infixr 0 $$&
 
@@ -104,22 +106,23 @@ infixr 0 $$&
 --
 -- >>> runCConduit $ CL.sourceList [1,2,3] =$=& CL.consume
 -- [1,2,3]
-(=$=&) :: (CCatable c1 c2) => c1 i x m () -> c2 x o m r -> LeastCConduit c1 c2 i o m r
+(=$=&) :: (CCatable c1 c2 c3) => c1 i x m () -> c2 x o m r -> c3 i o m r
 a =$=& b = buffer' 64 a b
 infixr 2 =$=&
 
 -- | An alias for '=$=&' by analogy with '=$=' and '$='.
-($=&) :: (CCatable c1 c2) => c1 i x m () -> c2 x o m r -> LeastCConduit c1 c2 i o m r
+($=&) :: (CCatable c1 c2 c3) => c1 i x m () -> c2 x o m r -> c3 i o m r
 ($=&) = (=$=&)
 infixl 1 $=&
 
 -- | An alias for '=$=&' by analogy with '=$=' and '=$'.
-(=$&) :: (CCatable c1 c2) => c1 i x m () -> c2 x o m r -> LeastCConduit c1 c2 i o m r
+(=$&) :: (CCatable c1 c2 c3) => c1 i x m () -> c2 x o m r -> c3 i o m r
 (=$&) = (=$=&)
 infixr 2 =$&
 
 -- | Conduits are concatenable; this class describes how.
-class CCatable c1 c2 where
+-- class CCatable (c1 :: * -> * -> (* -> *) -> * -> *) (c2 :: * -> * -> (* -> *) -> * -> *) (c3 :: * -> * -> (* -> *) -> * -> *) | c1 c2 -> c3 where
+class CCatable c1 c2 (c3 :: * -> * -> (* -> *) -> * -> *) | c1 c2 -> c3 where
   -- | Concurrently join the producer and consumer, using a bounded queue of the
   -- given size. The producer will block when the queue is full, if it is
   -- producing faster than the consumers is taking from it. Likewise, if the
@@ -137,7 +140,7 @@ class CCatable c1 c2 where
   buffer' :: Int -- ^ Size of the bounded queue in memory
              -> c1 i x m ()
              -> c2 x o m r
-             -> LeastCConduit c1 c2 i o m r
+             -> c3 i o m r
 
 -- | Like 'buffer', except that when the bounded queue is overflowed, the
 -- excess is cached in a local file so that consumption from upstream may
@@ -207,47 +210,32 @@ class CRunnable c where
   -- additionally be a in instance of 'MonadResource'.
   runCConduit :: (RunConstraints c m) => c () Void m r -> m r
 
--- | Determines the result type of concurent conduit when two conduits
--- are combined with 'buffer'' or '=$=&'.
-type family LeastCConduit a b where
-  LeastCConduit ConduitM ConduitM = CConduit
-  LeastCConduit ConduitM CConduit = CConduit
-  LeastCConduit ConduitM CFConduit = CFConduit
-
-  LeastCConduit CConduit ConduitM = CConduit
-  LeastCConduit CConduit CConduit = CConduit
-  LeastCConduit CConduit CFConduit = CFConduit
-
-  LeastCConduit CFConduit ConduitM = CFConduit
-  LeastCConduit CFConduit CConduit = CFConduit
-  LeastCConduit CFConduit CFConduit = CFConduit
-
-instance CCatable ConduitM ConduitM where
+instance CCatable ConduitM ConduitM CConduit where
   buffer' i a b = buffer' i (Single a) (Single b)
 
-instance CCatable ConduitM CConduit where
+instance CCatable ConduitM CConduit CConduit where
   buffer' i a b = buffer' i (Single a) b
 
-instance CCatable ConduitM CFConduit where
+instance CCatable ConduitM CFConduit CFConduit where
   buffer' i a b = buffer' i (asCFConduit a) b
 
-instance CCatable CConduit ConduitM where
+instance CCatable CConduit ConduitM CConduit where
   buffer' i a b = buffer' i a (Single b)
 
-instance CCatable CConduit CConduit where
+instance CCatable CConduit CConduit CConduit where
   buffer' i (Single a) b = Multiple i a b
   buffer' i (Multiple i' a as) b = Multiple i' a (buffer' i as b)
 
-instance CCatable CConduit CFConduit where
+instance CCatable CConduit CFConduit CFConduit where
   buffer' i a b = buffer' i (asCFConduit a) b
 
-instance CCatable CFConduit ConduitM where
+instance CCatable CFConduit ConduitM CFConduit where
   buffer' i a b = buffer' i a (asCFConduit b)
 
-instance CCatable CFConduit CConduit where
+instance CCatable CFConduit CConduit CFConduit where
   buffer' i a b = buffer' i a (asCFConduit b)
 
-instance CCatable CFConduit CFConduit where
+instance CCatable CFConduit CFConduit CFConduit where
   buffer' i (FSingle a) b = FMultiple i a b
   buffer' i (FMultiple i' a as) b = FMultiple i' a (buffer' i as b)
   buffer' i (FMultipleF bufsz dsksz tmpDir a as) b = FMultipleF bufsz dsksz tmpDir a (buffer' i as b)
