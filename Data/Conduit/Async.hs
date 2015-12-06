@@ -13,6 +13,9 @@ module Data.Conduit.Async ( module Data.Conduit.Async.Composition
                           , drainTo
                           ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 import           Control.Concurrent.Async.Lifted
 import           Control.Concurrent.STM
 import           Control.Exception.Lifted

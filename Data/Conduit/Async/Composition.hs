@@ -22,6 +22,9 @@ module Data.Conduit.Async.Composition ( CConduit
                                       , runCConduit
                                       ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 import Conduit
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent.Async.Lifted hiding (link2)
