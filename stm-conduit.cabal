@@ -1,9 +1,7 @@
 Name:                stm-conduit
 Version:             2.6.1
-Synopsis:            Introduces conduits to channels, and promotes using
-                     conduits concurrently.
-Description:         Provides two simple conduit wrappers around STM
-                     channels - a source and a sink.
+Synopsis:            Introduces conduits to channels, and promotes using conduits concurrently.
+Description:         Provides two simple conduit wrappers around STM channels - a source and a sink.
 Homepage:            https://github.com/wowus/stm-conduit
 License:             BSD3
 License-file:        LICENSE
@@ -49,7 +47,7 @@ Library
 
 test-suite stm-conduit-doctests
     type:           exitcode-stdio-1.0
-    main-is:        DocTest.hs
+    main-is:        DocTests.hs
     ghc-options:    -threaded
     hs-source-dirs: test/
                     ./

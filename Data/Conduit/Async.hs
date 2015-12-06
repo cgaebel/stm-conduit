@@ -13,7 +13,6 @@ module Data.Conduit.Async ( module Data.Conduit.Async.Composition
                           , drainTo
                           ) where
 
-import           Control.Applicative
 import           Control.Concurrent.Async.Lifted
 import           Control.Concurrent.STM
 import           Control.Exception.Lifted

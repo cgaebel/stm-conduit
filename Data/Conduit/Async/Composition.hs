@@ -23,7 +23,6 @@ module Data.Conduit.Async.Composition ( CConduit
                                       ) where
 
 import Conduit
-import Control.Applicative
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent.Async.Lifted hiding (link2)
 import Control.Concurrent.STM

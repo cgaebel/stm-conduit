@@ -53,7 +53,6 @@ module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
                            , mergeConduits
                            ) where
 
-import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 import Control.Monad.Trans.Class
