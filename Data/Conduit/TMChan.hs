@@ -53,6 +53,9 @@ module Data.Conduit.TMChan ( -- * Bounded Channel Connectors
                            , mergeConduits
                            ) where
 
+#if __GLASGOW_HASKELL__ < 710
+import           Control.Applicative
+#endif
 import Control.Monad
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 import Control.Monad.Trans.Class
