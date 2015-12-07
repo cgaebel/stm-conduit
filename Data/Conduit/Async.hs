@@ -1,4 +1,6 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -14,18 +16,18 @@ module Data.Conduit.Async ( module Data.Conduit.Async.Composition
                           ) where
 
 #if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative
+import Control.Applicative
 #endif
-import           Control.Concurrent.Async.Lifted
-import           Control.Concurrent.STM
-import           Control.Exception.Lifted
-import           Control.Monad.IO.Class
-import           Control.Monad.Loops
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Control
-import           Data.Conduit
+import Control.Concurrent.Async.Lifted
+import Control.Concurrent.STM
+import Control.Exception.Lifted
+import Control.Monad.IO.Class
+import Control.Monad.Loops
+import Control.Monad.Trans.Class
+import Control.Monad.Trans.Control
+import Data.Conduit
 
-import           Data.Conduit.Async.Composition
+import Data.Conduit.Async.Composition
 
 -- | Gather output values asynchronously from an action in the base monad and
 --   then yield them downstream.  This provides a means of working around the

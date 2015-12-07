@@ -1,4 +1,9 @@
-{-# LANGUAGE NoMonomorphismRestriction, FlexibleContexts, RankNTypes,KindSignatures #-}
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE KindSignatures #-}
+
 -- | * Introduction
 --
 --   Contains a simple source and sink for linking together conduits in

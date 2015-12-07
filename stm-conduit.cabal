@@ -46,8 +46,6 @@ Library
       , void                >= 0.7
       , ghc-prim
 
-    extensions: CPP
-
     ghc-options: -Wall -fwarn-tabs -fwarn-unused-imports
 
 test-suite stm-conduit-doctests
@@ -56,7 +54,6 @@ test-suite stm-conduit-doctests
     ghc-options:    -threaded
     hs-source-dirs: test/
                     ./
-    extensions: CPP
     build-depends:  base
                   , doctest
 
@@ -64,8 +61,6 @@ test-suite stm-conduit-tests
     type:           exitcode-stdio-1.0
     main-is:        Test.hs
     hs-source-dirs: test/
-
-    extensions: CPP
 
     ghc-options:    -rtsopts=all -threaded
 

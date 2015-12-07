@@ -1,9 +1,11 @@
 {-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -26,7 +28,7 @@ module Data.Conduit.Async.Composition ( CConduit
 import           Control.Applicative
 #endif
 import Conduit
-import qualified Control.Concurrent.Async as A
+import qualified "async" Control.Concurrent.Async as A
 import Control.Concurrent.Async.Lifted hiding (link2)
 import Control.Concurrent.STM
 import Control.Exception (finally)
