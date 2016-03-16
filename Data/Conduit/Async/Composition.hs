@@ -41,6 +41,9 @@ import qualified Data.Conduit.List as CL
 import Data.Foldable (forM_)
 import Data.Serialize
 import Data.Void
+#if __GLASGOW_HASKELL__ > 710
+import GHC.Exts (Constraint)
+#endif
 import GHC.Prim
 import System.Directory (removeFile)
 import System.IO
