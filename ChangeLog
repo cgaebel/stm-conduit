@@ -1,3 +1,8 @@
+3.0
+---
+* Data.Conduit.mergeSources - fixed bug when input Sources were not
+closed when outgoing source is closed.
+
 2.3
 ---
 * Data.Conduit.Utils is introduced. It's possible to use it to create

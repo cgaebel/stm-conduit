@@ -73,10 +73,11 @@ test_simpleMQueue = do q <- atomically $ newTMQueue
     where
         testList = [1..10000]
 
-test_multipleWriters = do ms <- runResourceT $ mergeSources [ sourceList ([1..10]::[Integer])
-                                                            , sourceList ([11..20]::[Integer])
-                                                            ] 3
-                          xs <- ms $$ consume
+test_multipleWriters = do xs <- runResourceT $ do
+                            ms <- mergeSources [ sourceList ([1..10]::[Integer])
+                                               , sourceList ([11..20]::[Integer])
+                                               ] 3
+                            ms $$ consume
                           assertEqual "for the numbers [1..10] and [11..20]," [1..20] $ sort xs
 
 test_asyncOperator = do sum'  <- CL.sourceList [1..n] $$ CL.fold (+) 0

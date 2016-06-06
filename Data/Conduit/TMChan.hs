@@ -65,9 +65,12 @@ import Control.Monad
 import Control.Monad.IO.Class ( liftIO, MonadIO )
 import Control.Monad.Trans.Class
 import Control.Monad.Trans.Resource
+import Control.Concurrent (killThread)
 import Control.Concurrent.STM
 import Control.Concurrent.STM.TBMChan
 import Control.Concurrent.STM.TMChan
+
+import qualified Control.Exception.Lifted as Lifted
 
 import Data.Conduit
 import qualified Data.Conduit.List as CL
@@ -76,7 +79,7 @@ chanSource
     :: MonadIO m
     => chan                     -- ^ The channel.
     -> (chan -> STM (Maybe a))  -- ^ The 'read' function.
-    -> (chan -> STM ())         -- ^ The 'close' function.
+    -> (chan -> IO  ())         -- ^ The 'close' function.
     -> Source m a
 chanSource ch reader closer =
     loop
@@ -86,7 +89,7 @@ chanSource ch reader closer =
         case a of
             Just x  -> yieldOr x close >> loop
             Nothing -> return ()
-    close = liftSTM $ closer ch
+    close = liftIO $ closer ch
 {-# INLINE chanSource #-}
 
 chanSink
@@ -106,14 +109,14 @@ chanSink ch writer closer = do
 --
 --   If the channel fills up, the pipeline will stall until values are read.
 sourceTBMChan :: MonadIO m => TBMChan a -> Source m a
-sourceTBMChan ch = chanSource ch readTBMChan closeTBMChan
+sourceTBMChan ch = chanSource ch readTBMChan (atomically . closeTBMChan)
 {-# INLINE sourceTBMChan #-}
 
 -- | A simple wrapper around a TMChan. As data is pushed into the channel, the
 --   source will read it and pass it down the conduit pipeline. When the
 --   channel is closed, the source will close also.
 sourceTMChan :: MonadIO m => TMChan a -> Source m a
-sourceTMChan ch = chanSource ch readTMChan closeTMChan
+sourceTMChan ch = chanSource ch readTMChan (atomically . closeTMChan)
 {-# INLINE sourceTMChan #-}
 
 -- | A simple wrapper around a TBMChan. As data is pushed into the sink, it
@@ -170,21 +173,34 @@ decRefcount tv chan = do n <- modifyTVar'' tv (subtract 1)
 --   The order of the new source's data is undefined, but it will be some
 --   combination of the given sources. The monad of the resultant source
 --   (@mo@) is independent of the monads of the input sources (@mi@).
+--
+--   @since 3.0
+--   All spawned threads will be removed when source is closed or upon an
+--   exit from 'ResourceT' region. This means that result can only be used
+--   within a 'runResourceT' scope.
+--
+--   @before 3.0
+--   Spawned threads are not guaranteed to be closed. This may happen if
+--   Source was closed before all it's input were closed.
 mergeSources :: (MonadResource mi, MonadIO mo, MonadBaseControl IO mi)
              => [Source mi a] -- ^ The sources to merge.
              -> Int -- ^ The bound of the intermediate channel.
              -> mi (Source mo a)
-mergeSources sx bound = do c <- liftSTM $ newTBMChan bound
-                           refcount <- liftSTM . newTVar $ length sx
-                           mapM_ (\s -> runResourceT $ resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount) (map (transPipe lift) sx)
-                           return $ sourceTBMChan c
+mergeSources sx bound = do
+     c <- liftSTM $ newTBMChan bound
+     refcount <- liftSTM . newTVar $ length sx
+     regs <- forM (map (transPipe lift) sx) $ \s -> Lifted.mask_ $ do
+       register . killThread <=< runResourceT $ resourceForkIO $ s $$ chanSink c writeTBMChan $ decRefcount refcount
+     return $ chanSource c readTBMChan
+                           (\chan -> do liftSTM $ closeTBMChan chan
+                                        mapM_ release regs)
 
 -- | Combines two conduits with unbounded channels, creating a new conduit
 --   which pulls data from a mix of the two: whichever produces first.
 --
 --   The order of the new conduit's output is undefined, but it will be some
 --   combination of the two given conduits.
-(<=>) :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
+(<=>) :: (MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
       => Show i
       => Conduit i (ResourceT mi) i
       -> Conduit i (ResourceT mi) i
@@ -199,7 +215,16 @@ sa <=> sb = mergeConduits [ sa, sb ] 16
 --   The order of the new conduits's outputs is undefined, but it will be some
 --   combination of the given conduits. The monad of the resultant conduit
 --   (@mo@) is independent of the monads of the input conduits (@mi@).
-mergeConduits :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
+--
+-- @since 3.0
+--   Closes all worker processes when resulting conduit is closed or when execution
+--   leaves ResourceT context. This means that conduit is only valid inside
+--   'runResouceT' scope.
+--
+-- @before 3.0
+--   Spawned threads are not guaranteed to be closed, This may happen if threads
+--   Conduit was closed before all threads have finished execution.
+mergeConduits :: (MonadIO mi, MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
               => [Conduit i (ResourceT mi) o] -- ^ The conduits to merge.
               -> Int -- ^ The bound for the channels.
               -> ResourceT mi (Conduit i mo o)
@@ -208,13 +233,15 @@ mergeConduits conduits bound = do
         refcount <- liftSTM $ newTVar len
         iChannels <- replicateM len $ liftSTM $ newTBMChan bound
         oChannel <- liftSTM $ newTBMChan bound
-        forM_ (zip iChannels conduits)
-            $ \(iChannel, conduit) -> resourceForkIO
+        regs <- forM (zip iChannels conduits)
+            $ \(iChannel, conduit) -> Lifted.mask_ $
+              register . killThread <=< resourceForkIO
                 $  sourceTBMChan iChannel
                 $$ conduit
-                =$ chanSink oChannel (writeTBMChans . (:[])) (decRefcount refcount)
+                =$ chanSink oChannel writeTBMChan (decRefcount refcount)
         return
             $  toConsumer (chanSink iChannels writeTBMChans (mapM_ closeTBMChan))
-            >> toProducer (sourceTBMChan oChannel)
+            >> toProducer (chanSource oChannel readTBMChan (\c -> do atomically $ closeTBMChan c
+                                                                     mapM_ release regs))
   where
     writeTBMChans channels a = forM_ channels $ \c -> writeTBMChan c a
