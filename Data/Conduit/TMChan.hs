@@ -200,7 +200,7 @@ mergeSources sx bound = do
 --
 --   The order of the new conduit's output is undefined, but it will be some
 --   combination of the two given conduits.
-(<=>) :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
+(<=>) :: (MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
       => Show i
       => Conduit i (ResourceT mi) i
       -> Conduit i (ResourceT mi) i
@@ -215,7 +215,16 @@ sa <=> sb = mergeConduits [ sa, sb ] 16
 --   The order of the new conduits's outputs is undefined, but it will be some
 --   combination of the given conduits. The monad of the resultant conduit
 --   (@mo@) is independent of the monads of the input conduits (@mi@).
-mergeConduits :: (MonadIO mi, MonadIO mo, MonadBaseControl IO mi)
+--
+-- @since 3.0
+--   Closes all worker processes when resulting conduit is closed or when execution
+--   leaves ResourceT context. This means that conduit is only valid inside
+--   'runResouceT' scope.
+--
+-- @before 3.0
+--   Spawned threads are not guaranteed to be closed, This may happen if threads
+--   Conduit was closed before all threads have finished execution.
+mergeConduits :: (MonadIO mi, MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
               => [Conduit i (ResourceT mi) o] -- ^ The conduits to merge.
               -> Int -- ^ The bound for the channels.
               -> ResourceT mi (Conduit i mo o)
@@ -224,13 +233,15 @@ mergeConduits conduits bound = do
         refcount <- liftSTM $ newTVar len
         iChannels <- replicateM len $ liftSTM $ newTBMChan bound
         oChannel <- liftSTM $ newTBMChan bound
-        forM_ (zip iChannels conduits)
-            $ \(iChannel, conduit) -> resourceForkIO
+        regs <- forM (zip iChannels conduits)
+            $ \(iChannel, conduit) -> Lifted.mask_ $
+              register . killThread <=< resourceForkIO
                 $  sourceTBMChan iChannel
                 $$ conduit
-                =$ chanSink oChannel (writeTBMChans . (:[])) (decRefcount refcount)
+                =$ chanSink oChannel writeTBMChan (decRefcount refcount)
         return
             $  toConsumer (chanSink iChannels writeTBMChans (mapM_ closeTBMChan))
-            >> toProducer (sourceTBMChan oChannel)
+            >> toProducer (chanSource oChannel readTBMChan (\c -> do atomically $ closeTBMChan c
+                                                                     mapM_ release regs))
   where
     writeTBMChans channels a = forM_ channels $ \c -> writeTBMChan c a
