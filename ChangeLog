@@ -1,3 +1,7 @@
+3.1
+--
+* Data.Conduit.Async - fix possible threads leak. Add documentation.
+
 3.0
 ---
 * Data.Conduit.mergeSources - fixed bug when input Sources were not

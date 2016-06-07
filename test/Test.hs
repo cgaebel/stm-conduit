@@ -128,9 +128,9 @@ test_mixed_buffer = do
                   in runResourceT $ CL.sourceList [1 :: Int .. 100] `buf` (slowDown aLittle $= mapC (* 3)) $$& CL.fold (+) 0
     assertEqual "sum of triples computed using mixed buffers" sumTriples 15150
 
-test_gatherFrom = do
-    sum' <- gatherFrom 128 gen $$ CL.fold (+) 0
-    assertEqual "sum computed using gatherFrom" sum' 5050
+test_gatherFrom = runResourceT $ do
+    sum' <- gatherFrom 128 (lift . gen) $$ CL.fold (+) 0
+    liftIO $ assertEqual "sum computed using gatherFrom" sum' 5050
   where
     gen queue = Monad.void $ Monad.foldM f queue [1..100]
       where
@@ -138,9 +138,9 @@ test_gatherFrom = do
             atomically $ writeTBQueue q x
             return q
 
-test_drainTo = do
-    sum' <- CL.sourceList [1..100] $$ drainTo 128 (go 0)
-    assertEqual "sum computed using drainTo" sum' 5050
+test_drainTo = runResourceT $ do
+    sum' <- CL.sourceList [1..100] $$ drainTo 128 (lift . go 0)
+    liftIO $ assertEqual "sum computed using drainTo" sum' 5050
   where
     go acc queue = do
         mres <- atomically $ readTBQueue queue
