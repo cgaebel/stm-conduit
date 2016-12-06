@@ -76,8 +76,7 @@ sourceTBQueue :: MonadIO m => TBQueue a -> Source m a
 sourceTBQueue q = forever $ liftSTM (readTBQueue q) >>= yield
 
 -- | A simple wrapper around a "TBQueue". As data is pushed into this sink, it
---   will magically begin to appear in the queue. Boolean argument is used
---   to specify if queue should be closed when the sink is closed.
+--   will magically begin to appear in the queue.
 sinkTBQueue :: MonadIO m => TBQueue a -> Sink a m ()
 sinkTBQueue q = CL.mapM_ (liftSTM . writeTBQueue q)
 
