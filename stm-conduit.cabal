@@ -11,7 +11,7 @@ Category:            Concurrency, Conduit
 
 Build-type:          Simple
 
-tested-with: GHC >= 7.8.4 && < 8.2.1
+tested-with: GHC == 7.8.4, GHC == 7.10.3, GHC == 8.0.1, GHC == 8.2.1
 -- selects GHC 7.8.4, 7.10.1, 7.10.2, 7.10.3, 8.0.1, 8.2.1
 
 Cabal-version:       >=1.8
