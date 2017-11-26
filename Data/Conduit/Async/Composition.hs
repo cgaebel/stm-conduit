@@ -410,7 +410,7 @@ persistChan BufferContext{..} = do
   writeTQueue restore $ do
     (path, key) <- liftIO $ atomically $ takeTMVar filePath
     CB.sourceFile path $= do
-      C.conduitGet get
+      C.conduitGet2 get
       liftIO $ atomically $ modifyTVar slotsFree (fmap (+ len))
       release key
   case xs of

@@ -224,7 +224,7 @@ sa <=> sb = mergeConduits [ sa, sb ] 16
 -- @before 3.0
 --   Spawned threads are not guaranteed to be closed, This may happen if threads
 --   Conduit was closed before all threads have finished execution.
-mergeConduits :: (MonadIO mi, MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
+mergeConduits :: (MonadIO mi, MonadThrow mi, MonadIO mo, MonadBaseControl IO mi)
               => [Conduit i (ResourceT mi) o] -- ^ The conduits to merge.
               -> Int -- ^ The bound for the channels.
               -> ResourceT mi (Conduit i mo o)

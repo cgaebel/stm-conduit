@@ -1,14 +1,13 @@
-module Main where
+module Main
+  where
 
 import Test.DocTest
+import System.FilePath.Find ((==?), always, extension, find)
+
+find_sources :: IO [FilePath]
+find_sources = find always (extension ==? ".hs") "Data"
 
 main :: IO ()
-main = doctest [
-  "-packageghc"
-  , "-isrc"
-  , "-idist/build/autogen/"
-  , "-optP-include"
-  , "-optPdist/build/autogen/cabal_macros.h"
-  , "-cpp"
-  , "Data/Conduit/Async/Composition.hs"
-  ]
+main = do
+  sources <- find_sources
+  doctest $ sources
