@@ -1,8 +1,8 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-| 
-This module provide different utility functions that allow to use safe higher 
+{-|
+This module provide different utility functions that allow to use safe higher
 level usage.
 
 Conduit pairs allow creation of an internal datastructure that acts as a bridge,
@@ -25,8 +25,8 @@ the following:
 >    mkSource = sourceTBMQueue
 >    mkSink   = flip sinkTBMQueue True
 
-  * Use "pair" or "pairBounded" to create a bridge. Because bridge data structure 
-    is hidden and not seen in parameters, we need proxy type to help compiler to 
+  * Use "pair" or "pairBounded" to create a bridge. Because bridge data structure
+    is hidden and not seen in parameters, we need proxy type to help compiler to
     choose type, we use "Proxy2" for that.
 
 >  pairTBMQueue = pairBounded (proxy2 :: Proxy2 TBMQueue a)
@@ -40,15 +40,15 @@ the following:
   conduit code.
 
 This package provides predefined pairs for all STM types that are used
-in the package. 
+in the package.
 
 -}
 module Data.Conduit.Utils
-  ( 
+  (
   -- * Conduit pairs
   -- ** Low level functions
     pairBounded   -- MonadIO m => m (Source m a, Sink m a ())
-  , pair          -- MonadIO m => Int -> m (Source m a, Sink m a ()) 
+  , pair          -- MonadIO m => Int -> m (Source m a, Sink m a ())
   -- ** Classes
   , UnboundedStream(..)
   , BoundedStream(..)
@@ -90,14 +90,14 @@ proxy2 = Proxy2
 
 -- | Class for structures that can handle unbounded stream of values.
 -- Such streams break conduit assumptions that constant memory will be
--- used, because if receiver is slower then sender than values will 
+-- used, because if receiver is slower then sender than values will
 -- be accumulated.
 class UnboundedStream i o | i -> o where
   mkUStream :: i a -> IO (o a)
 
 -- | Class for structures that can handle bounded stream of values i.e.
--- there is exists 'Int' value that sets an upper limit on the number 
--- of values that can be handled by structure. Exact meaning of this 
+-- there is exists 'Int' value that sets an upper limit on the number
+-- of values that can be handled by structure. Exact meaning of this
 -- limit may depend on the carrier type.
 class BoundedStream i o | i -> o where
   mkBStream :: i a -> Int -> IO (o a)
@@ -105,14 +105,14 @@ class BoundedStream i o | i -> o where
 -- | Class that describes how we can make conduit out of the carrier
 -- value.
 class MonadIO m => IsConduit m (x :: * -> *) where
-  mkSink   :: x a -> Sink a m ()
-  mkSource :: x a -> Source m a
+  mkSink   :: x a -> ConduitT a Void m ()
+  mkSource :: x a -> ConduitT () a m ()
 
 -- | Create bounded conduit pair, see "BoundedStream" class description.
 pairBounded :: (MonadIO m, IsConduit m o, BoundedStream i o)
             => i a    -- ^ Type description.
             -> Int    -- ^ Conduit size.
-            -> m (Source m a, Sink a m ())
+            -> m (ConduitT () a m (), ConduitT a Void m ())
 pairBounded p s = do
   q <- liftIO $ mkBStream p s
   return (mkSource q, mkSink q)
@@ -120,7 +120,7 @@ pairBounded p s = do
 -- | Create unbounded pair, see "UnboundedStream" class description.
 pair :: (MonadIO m, IsConduit m o, UnboundedStream i o)
      => i a   -- ^ Type description.
-     -> m (Source m a, Sink a m ())
+     -> m (ConduitT () a m (), ConduitT a Void m ())
 pair p = do
   q <- liftIO $ mkUStream p
   return (mkSource q, mkSink q)
@@ -152,11 +152,11 @@ instance MonadIO m => IsConduit m TBQueue where
 
 instance MonadIO m => IsConduit m TBMQueue where
   mkSource = sourceTBMQueue
-  mkSink   = flip sinkTBMQueue True
+  mkSink   = sinkTBMQueue
 
 instance MonadIO m => IsConduit m TMQueue where
   mkSource = sourceTMQueue
-  mkSink   = flip sinkTMQueue True
+  mkSink   = sinkTMQueue
 
 instance MonadIO m => IsConduit m TQueue where
   mkSource = sourceTQueue
@@ -164,11 +164,11 @@ instance MonadIO m => IsConduit m TQueue where
 
 instance MonadIO m => IsConduit m TBMChan where
   mkSource = sourceTBMChan
-  mkSink   = flip sinkTBMChan True
+  mkSink   = sinkTBMChan
 
 instance MonadIO m => IsConduit m TMChan where
   mkSource = sourceTMChan
-  mkSink   = flip sinkTMChan True
+  mkSink   = sinkTMChan
 
 -------------------------------------------------------------------------------
 -- Specialized functions
@@ -179,12 +179,12 @@ instance MonadIO m => IsConduit m TMChan where
 -- is not closable then there is no way to notify receiver side that bridge
 -- is closed, so it's possible to use it only in infinite streams of when
 -- some other mechanism of notification is used.
-pairTQueue, pairTMQueue, pairTMChan :: MonadIO m => m (Source m a, Sink a m ())
+pairTQueue, pairTMQueue, pairTMChan :: MonadIO m => m (ConduitT () a m (), ConduitT a Void m ())
 pairTQueue   = pair (proxy2 :: Proxy2 TQueue a)
 pairTMQueue  = pair (proxy2 :: Proxy2 TMQueue a)
 pairTMChan   = pair (proxy2 :: Proxy2 TMChan a)
 
-pairTBQueue, pairTBMQueue, pairTBMChan :: MonadIO m => Int -> m (Source m a, Sink a m ())
+pairTBQueue, pairTBMQueue, pairTBMChan :: MonadIO m => Int -> m (ConduitT () a m (), ConduitT a Void m ())
 pairTBQueue  = pairBounded (proxy2 :: Proxy2 TBQueue a)
 pairTBMQueue = pairBounded (proxy2 :: Proxy2 TBMQueue a)
 pairTBMChan  = pairBounded (proxy2 :: Proxy2 TBMChan a)

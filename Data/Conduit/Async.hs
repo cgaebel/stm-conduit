@@ -15,39 +15,33 @@ module Data.Conduit.Async ( module Data.Conduit.Async.Composition
                           , drainTo
                           ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import Control.Applicative
-#endif
-import Control.Concurrent.Async.Lifted
-import Control.Concurrent.STM
-import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Loops
 import Control.Monad.Trans.Class
-import Control.Monad.Trans.Control
 import Data.Conduit
-
 import Data.Conduit.Async.Composition
+import Data.Foldable
+import UnliftIO
 
 -- | Gather output values asynchronously from an action in the base monad and
 --   then yield them downstream.  This provides a means of working around the
 --   restriction that 'ConduitM' cannot be an instance of 'MonadBaseControl'
 --   in order to, for example, yield values from within a Haskell callback
 --   function called from a C library.
-gatherFrom :: (MonadIO m, MonadBaseControl IO m)
+gatherFrom :: (MonadIO m, MonadUnliftIO m)
            => Int                -- ^ Size of the queue to create
            -> (TBQueue o -> m ()) -- ^ Action that generates output values
-           -> Producer m o
+           -> ConduitT () o m ()
 gatherFrom size scatter = do
     chan   <- liftIO $ newTBQueueIO size
     worker <- lift $ async (scatter chan)
-    lift . restoreM =<< gather worker chan
+    gather worker chan
   where
     gather worker chan = do
         (xs, mres) <- liftIO $ atomically $ do
             xs <- whileM (not <$> isEmptyTBQueue chan) (readTBQueue chan)
             (xs,) <$> pollSTM worker
-        Prelude.mapM_ yield xs
+        traverse_ yield xs
         case mres of
             Just (Left e)  -> liftIO $ throwIO (e :: SomeException)
             Just (Right r) -> return r
@@ -55,14 +49,14 @@ gatherFrom size scatter = do
 
 -- | Drain input values into an asynchronous action in the base monad via a
 --   bounded 'TBQueue'.  This is effectively the dual of 'gatherFrom'.
-drainTo :: (MonadIO m, MonadBaseControl IO m)
+drainTo :: (MonadIO m, MonadUnliftIO m)
         => Int                        -- ^ Size of the queue to create
         -> (TBQueue (Maybe i) -> m r)  -- ^ Action to consume input values
-        -> Consumer i m r
+        -> ConduitT i Void m r
 drainTo size gather = do
     chan   <- liftIO $ newTBQueueIO size
     worker <- lift $ async (gather chan)
-    lift . restoreM =<< scatter worker chan
+    scatter worker chan
   where
     scatter worker chan = do
         mval <- await
