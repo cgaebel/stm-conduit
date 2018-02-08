@@ -4,11 +4,11 @@ import Test.DocTest
 
 main :: IO ()
 main = doctest [
-  "-packageghc"
-  , "-isrc"
-  , "-idist/build/autogen/"
-  , "-optP-include"
-  , "-optPdist/build/autogen/cabal_macros.h"
-  , "-cpp"
-  , "Data/Conduit/Async/Composition.hs"
+--  "-packageghc"
+--  , "-isrc"
+--  , "-idist/build/autogen/"
+--  , "-optP-include"
+--  , "-optPdist/build/autogen/cabal_macros.h"
+--  , "-cpp"
+--  , "Data/Conduit/Async/Composition.hs"
   ]

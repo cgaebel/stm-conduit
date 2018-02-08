@@ -206,8 +206,7 @@ mergeSources sx bound = do
 --
 --   The order of the new conduit's output is undefined, but it will be some
 --   combination of the two given conduits.
-(<=>) :: (MonadIO mi, MonadThrow mi, MonadIO mo, MonadUnliftIO mi)
-      => Show i
+(<=>) :: (MonadThrow mi, MonadIO mo, MonadUnliftIO mi)
       => ConduitT i i (ResourceT mi) ()
       -> ConduitT i i (ResourceT mi) ()
       -> ResourceT mi (ConduitT i i mo ())
@@ -231,7 +230,7 @@ sa <=> sb = mergeConduits [ sa, sb ] 16
 --   Spawned threads are not guaranteed to be closed, This may happen if threads
 --   Conduit was closed before all threads have finished execution.
 {-# DEPRECATED mergeConduits "This method will dissapear in the next version." #-}
-mergeConduits :: (MonadIO mi, MonadIO mi, MonadThrow mi, MonadIO mo, MonadUnliftIO mi)
+mergeConduits :: (MonadIO mo, MonadUnliftIO mi)
               => [ConduitT i o (ResourceT mi) ()] -- ^ The conduits to merge.
               -> Int -- ^ The bound for the channels.
               -> ResourceT mi (ConduitT i o mo ())
