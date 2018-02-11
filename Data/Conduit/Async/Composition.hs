@@ -24,14 +24,8 @@ module Data.Conduit.Async.Composition ( CConduit
                                       , runCConduit
                                       ) where
 
-#if __GLASGOW_HASKELL__ < 710
-import           Control.Applicative
-#endif
 import Conduit
-import qualified "async" Control.Concurrent.Async as A
-import Control.Concurrent.Async.Lifted hiding (link2)
-import Control.Concurrent.STM
-import Control.Exception (finally)
+import Control.Concurrent.STM (orElse, check)
 import Control.Monad hiding (forM_)
 import Control.Monad.Loops
 import Control.Monad.Trans.Resource
@@ -40,13 +34,10 @@ import qualified Data.Conduit.Cereal as C
 import qualified Data.Conduit.List as CL
 import Data.Foldable (forM_)
 import Data.Serialize
-import Data.Void
-#if __GLASGOW_HASKELL__ > 710
 import GHC.Exts (Constraint)
-#endif
-import GHC.Prim
 import System.Directory (removeFile)
-import System.IO
+import System.IO (openBinaryTempFile)
+import UnliftIO
 
 -- | Concurrently join the producer and consumer, using a bounded queue of the
 -- given size. The producer will block when the queue is full, if it is
@@ -161,7 +152,7 @@ class CCatable c1 c2 (c3 :: * -> * -> (* -> *) -> * -> *) | c1 c2 -> c3 where
 --
 -- >>> runResourceT $ bufferToFile 1 Nothing "/tmp" (CL.sourceList [1,2,3]) CL.consume
 -- [1,2,3]
-bufferToFile :: (CFConduitLike c1, CFConduitLike c2, Serialize x, MonadBaseControl IO m, MonadIO m, MonadResource m)
+bufferToFile :: (CFConduitLike c1, CFConduitLike c2, Serialize x, MonadUnliftIO m, MonadResource m, MonadThrow m)
                 => Int -- ^ Size of the bounded queue in memory
                 -> Maybe Int -- ^ Max elements to keep on disk at one time
                 -> FilePath -- ^ Directory to write temp files to
@@ -212,20 +203,20 @@ class CRunnable c where
   -- equivalent of 'runConduit'.
   --
   -- The underlying monad must always be an instance of
-  -- 'MonadBaseControl IO'.  If the conduits is a 'CFConduit', it must
+  -- 'MonadUnliftIO'.  If the conduits is a 'CFConduit', it must
   -- additionally be a in instance of 'MonadResource'.
   runCConduit :: (RunConstraints c m) => c () Void m r -> m r
 
-instance CCatable ConduitM ConduitM CConduit where
+instance CCatable ConduitT ConduitT CConduit where
   buffer' i a b = buffer' i (Single a) (Single b)
 
-instance CCatable ConduitM CConduit CConduit where
+instance CCatable ConduitT CConduit CConduit where
   buffer' i a b = buffer' i (Single a) b
 
-instance CCatable ConduitM CFConduit CFConduit where
+instance CCatable ConduitT CFConduit CFConduit where
   buffer' i a b = buffer' i (asCFConduit a) b
 
-instance CCatable CConduit ConduitM CConduit where
+instance CCatable CConduit ConduitT CConduit where
   buffer' i a b = buffer' i a (Single b)
 
 instance CCatable CConduit CConduit CConduit where
@@ -235,7 +226,7 @@ instance CCatable CConduit CConduit CConduit where
 instance CCatable CConduit CFConduit CFConduit where
   buffer' i a b = buffer' i (asCFConduit a) b
 
-instance CCatable CFConduit ConduitM CFConduit where
+instance CCatable CFConduit ConduitT CFConduit where
   buffer' i a b = buffer' i a (asCFConduit b)
 
 instance CCatable CFConduit CConduit CFConduit where
@@ -246,12 +237,12 @@ instance CCatable CFConduit CFConduit CFConduit where
   buffer' i (FMultiple i' a as) b = FMultiple i' a (buffer' i as b)
   buffer' i (FMultipleF bufsz dsksz tmpDir a as) b = FMultipleF bufsz dsksz tmpDir a (buffer' i as b)
 
-instance CRunnable ConduitM where
-  type RunConstraints ConduitM m = (Monad m)
+instance CRunnable ConduitT where
+  type RunConstraints ConduitT m = (MonadUnliftIO m, Monad m)
   runCConduit = runConduit
 
 instance CRunnable CConduit where
-  type RunConstraints CConduit m = (MonadBaseControl IO m, MonadIO m)
+  type RunConstraints CConduit m = (MonadUnliftIO m, MonadIO m)
   runCConduit (Single c) = runConduit c
   runCConduit (Multiple bufsz c cs) = do
     chan <- liftIO $ newTBQueueIO bufsz
@@ -259,7 +250,7 @@ instance CRunnable CConduit where
       stage chan c' cs
 
 instance CRunnable CFConduit where
-  type RunConstraints CFConduit m = (MonadBaseControl IO m, MonadIO m, MonadResource m)
+  type RunConstraints CFConduit m = (MonadThrow m, MonadUnliftIO m, MonadIO m, MonadResource m)
   runCConduit (FSingle c) = runConduit c
   runCConduit (FMultiple bufsz c cs) = do
     chan <- liftIO $ newTBQueueIO bufsz
@@ -277,26 +268,22 @@ instance CRunnable CFConduit where
 -- | A "concurrent conduit", in which the stages run in parallel with
 -- a buffering queue between them.
 data CConduit i o m r where
-  Single :: ConduitM i o m r -> CConduit i o m r
-  Multiple :: Int -> ConduitM i x m () -> CConduit x o m r -> CConduit i o m r
-
--- C.C.A.L's link2 has the wrong type:  https://github.com/maoe/lifted-async/issues/16
-link2 :: MonadBase IO m => Async a -> Async b -> m ()
-link2 = (liftBase .) . A.link2
+  Single :: ConduitT i o m r -> CConduit i o m r
+  Multiple :: Int -> ConduitT i x m () -> CConduit x o m r -> CConduit i o m r
 
 -- Combines a producer with a queue, sending it everything the
 -- producer produces.
-sender :: (MonadIO m) => TBQueue (Maybe o) -> ConduitM () o m () -> m ()
+sender :: (MonadIO m) => TBQueue (Maybe o) -> ConduitT () o m () -> m ()
 sender chan input = do
-  input $$ mapM_C (send chan . Just)
+  runConduit $ input .| mapM_C (send chan . Just)
   send chan Nothing
 
 -- One "layer" of withAsync in a CConduit run.
-stage :: (MonadBaseControl IO m, MonadIO m) => TBQueue (Maybe i) -> Async x -> CConduit i Void m r -> m r
+stage :: (MonadUnliftIO m) => TBQueue (Maybe i) -> Async x -> CConduit i Void m r -> m r
 stage chan prevAsync (Single c) =
   -- The last layer; feed the output of "chan" into the conduit and
   -- wait for the result.
-  withAsync (receiver chan $$ c) $ \c' -> do
+  withAsync (runConduit $ receiver chan .| c) $ \c' -> do
     link2 prevAsync c'
     wait c'
 stage chan prevAsync (Multiple bufsz c cs) = do
@@ -304,13 +291,13 @@ stage chan prevAsync (Multiple bufsz c cs) = do
   -- layer's conduit process it, and send the conduit's output to the
   -- next layer.
   chan' <- liftIO $ newTBQueueIO bufsz
-  withAsync (sender chan' $ receiver chan =$= c) $ \c' -> do
+  withAsync (sender chan' $ receiver chan .| c) $ \c' -> do
     link2 prevAsync c'
     stage chan' c' cs
 
 -- A Producer which produces the values of the given channel until
 -- Nothing is received.  This is the other half of "sender".
-receiver :: (MonadIO m) => TBQueue (Maybe o) -> ConduitM () o m ()
+receiver :: (MonadIO m) => TBQueue (Maybe o) -> ConduitT () o m ()
 receiver chan = do
   mx <- recv chan
   case mx of
@@ -320,14 +307,14 @@ receiver chan = do
 -- | A "concurrent conduit", in which the stages run in parallel with
 -- a buffering queue and possibly a disk file between them.
 data CFConduit i o m r where
-  FSingle :: ConduitM i o m r -> CFConduit i o m r
-  FMultiple :: Int -> ConduitM i x m () -> CFConduit x o m r -> CFConduit i o m r
-  FMultipleF :: (Serialize x) => Int -> Maybe Int -> FilePath -> ConduitM i x m () -> CFConduit x o m r -> CFConduit i o m r
+  FSingle :: ConduitT i o m r -> CFConduit i o m r
+  FMultiple :: Int -> ConduitT i x m () -> CFConduit x o m r -> CFConduit i o m r
+  FMultipleF :: (Serialize x) => Int -> Maybe Int -> FilePath -> ConduitT i x m () -> CFConduit x o m r -> CFConduit i o m r
 
 class CFConduitLike a where
   asCFConduit :: a i o m r -> CFConduit i o m r
 
-instance CFConduitLike ConduitM where
+instance CFConduitLike ConduitT where
   asCFConduit = FSingle
 
 instance CFConduitLike CConduit where
@@ -338,7 +325,7 @@ instance CFConduitLike CFConduit where
   asCFConduit = id
 
 data BufferContext m a = BufferContext { chan :: TBQueue a
-                                       , restore :: TQueue (Source m a)
+                                       , restore :: TQueue (ConduitT () a m ())
                                        , slotsFree :: TVar (Maybe Int)
                                        , done :: TVar Bool
                                        , tempDir :: FilePath
@@ -347,22 +334,22 @@ data BufferContext m a = BufferContext { chan :: TBQueue a
 -- The file-backed equivlent of "sender".  This sends the values
 -- generated by "input" to the "chan" in the BufferContext until it
 -- gets full, then flushes it to disk via "persistChan".
-fsender :: (MonadIO m, MonadResource m, Serialize x) => BufferContext m x -> ConduitM () x m () -> m ()
+fsender :: (MonadThrow m, MonadResource m, Serialize x) => BufferContext m x -> ConduitT () x m () -> m ()
 fsender bc@BufferContext{..} input = do
-  input $$ mapM_C $ \x -> join $ liftIO $ atomically $ do
+  runConduit $ input .| (mapM_C $ \x -> join $ liftIO $ atomically $ do
     (writeTBQueue chan x >> return (return ())) `orElse` do
       action <- persistChan bc
       writeTBQueue chan x
-      return action
+      return action)
   liftIO $ atomically $ writeTVar done True
 
 -- Connect a stage to another stage via either an in-memory queue or a
 -- disk buffer.  This is the file-backed equivalent of "stage".
-fstage :: (MonadBaseControl IO m, MonadIO m, MonadResource m) => ConduitM () i m () -> Async x -> CFConduit i Void m r -> m r
+fstage :: (MonadThrow m, MonadUnliftIO m, MonadResource m) => ConduitT () i m () -> Async x -> CFConduit i Void m r -> m r
 fstage prevStage prevAsync (FSingle c) =
   -- The final conduit in the chain; just accept everything from
   -- the previous stage and wait for the result.
-  withAsync (prevStage $$ c) $ \c' -> do
+  withAsync (runConduit $ prevStage .| c) $ \c' -> do
     link2 prevAsync c'
     wait c'
 fstage prevStage prevAsync (FMultiple bufsz c cs) = do
@@ -370,7 +357,7 @@ fstage prevStage prevAsync (FMultiple bufsz c cs) = do
   -- channel, so it just uses "sender" and "reciever" in the same way
   -- "stage" does.
   chan' <- liftIO $ newTBQueueIO bufsz
-  withAsync (sender chan' $ prevStage =$= c) $ \c' -> do
+  withAsync (sender chan' $ prevStage .| c) $ \c' -> do
     link2 prevAsync c'
     fstage (receiver chan') c' cs
 fstage prevStage prevAsync (FMultipleF bufsz dsksz tempDir c cs) = do
@@ -381,13 +368,13 @@ fstage prevStage prevAsync (FMultipleF bufsz dsksz tempDir c cs) = do
                                <*> newTVarIO dsksz
                                <*> newTVarIO False
                                <*> pure tempDir
-  withAsync (fsender bc $ prevStage =$= c) $ \c' -> do
+  withAsync (fsender bc $ prevStage .| c) $ \c' -> do
     link2 prevAsync c'
     fstage (freceiver bc) c' cs
 
 -- Receives from disk files or the in-memory queue if no spill-to-disk
 -- has occurred.
-freceiver :: (MonadIO m) => BufferContext m o -> ConduitM () o m ()
+freceiver :: (MonadIO m) => BufferContext m o -> ConduitT () o m ()
 freceiver BufferContext{..} = loop where
   loop = do
     (src, exit) <- liftIO $ atomically $ do
@@ -400,7 +387,7 @@ freceiver BufferContext{..} = loop where
 
 -- The channel is full, so (return an action which will) spill it to disk, unless too
 -- many items are there already.
-persistChan :: (MonadIO m, MonadResource m, Serialize o) => BufferContext m o -> STM (m ())
+persistChan :: (MonadThrow m, MonadResource m, Serialize o) => BufferContext m o -> STM (m ())
 persistChan BufferContext{..} = do
   xs <- exhaust chan
   mslots <- readTVar slotsFree
@@ -409,8 +396,8 @@ persistChan BufferContext{..} = do
   filePath <- newEmptyTMVar
   writeTQueue restore $ do
     (path, key) <- liftIO $ atomically $ takeTMVar filePath
-    CB.sourceFile path $= do
-      C.conduitGet get
+    CB.sourceFile path .| do
+      C.conduitGet2 get
       liftIO $ atomically $ modifyTVar slotsFree (fmap (+ len))
       release key
   case xs of
@@ -420,7 +407,7 @@ persistChan BufferContext{..} = do
      return $ do
        (key, (path, h)) <- allocate (openBinaryTempFile tempDir "conduit.bin") (\(path, h) -> hClose h `finally` removeFile path)
        liftIO $ do
-         CL.sourceList xs $= C.conduitPut put $$ CB.sinkHandle h
+         runConduit $ CL.sourceList xs .| C.conduitPut put .| CB.sinkHandle h
          hClose h
          atomically $ putTMVar filePath (path, key)
 
