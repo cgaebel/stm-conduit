@@ -18,7 +18,13 @@
 --   data (pictures, in this case) will be streamed down the channel to whatever
 --   is on the other side.
 --
---   >    _ <- forkIO . runResourceT $ loadTextures lotsOfPictures $$ sinkTBMChan chan
+--   >    _ <- forkIO . runResourceT $ do
+--   >          _ <- register $ atomically $ closeTBMChan chan
+--   >          loadTextures lotsOfPictures $$ sinkTBMChan chan
+--
+--   We register closing function explicitly, because starting with version
+--   @1.3.0@ @conduits@ library no longer maintain resources, so this is the
+--   only way to safely close channel in case of exceptions.
 --
 --   Finally, we connect something to the other end of the channel. In this
 --   case, we connect a sink which uploads the textures one by one to the
