@@ -245,7 +245,7 @@ instance CRunnable CConduit where
   type RunConstraints CConduit m = (MonadUnliftIO m, MonadIO m)
   runCConduit (Single c) = runConduit c
   runCConduit (Multiple bufsz c cs) = do
-    chan <- liftIO $ newTBQueueIO bufsz
+    chan <- liftIO $ newTBQueueIO (fromIntegral bufsz)
     withAsync (sender chan c) $ \c' ->
       stage chan c' cs
 
@@ -253,11 +253,11 @@ instance CRunnable CFConduit where
   type RunConstraints CFConduit m = (MonadThrow m, MonadUnliftIO m, MonadIO m, MonadResource m)
   runCConduit (FSingle c) = runConduit c
   runCConduit (FMultiple bufsz c cs) = do
-    chan <- liftIO $ newTBQueueIO bufsz
+    chan <- liftIO $ newTBQueueIO (fromIntegral bufsz)
     withAsync (sender chan c) $ \c' ->
       fstage (receiver chan) c' cs
   runCConduit (FMultipleF bufsz filemax tempDir c cs) = do
-    context <- liftIO $ BufferContext <$> newTBQueueIO bufsz
+    context <- liftIO $ BufferContext <$> newTBQueueIO (fromIntegral bufsz)
                                       <*> newTQueueIO
                                       <*> newTVarIO filemax
                                       <*> newTVarIO False
@@ -290,7 +290,7 @@ stage chan prevAsync (Multiple bufsz c cs) = do
   -- not the last layer, so take the input from "chan", have this
   -- layer's conduit process it, and send the conduit's output to the
   -- next layer.
-  chan' <- liftIO $ newTBQueueIO bufsz
+  chan' <- liftIO $ newTBQueueIO (fromIntegral bufsz)
   withAsync (sender chan' $ receiver chan .| c) $ \c' -> do
     link2 prevAsync c'
     stage chan' c' cs
@@ -356,14 +356,14 @@ fstage prevStage prevAsync (FMultiple bufsz c cs) = do
   -- This stage is connected to the next via a non-file-backed
   -- channel, so it just uses "sender" and "reciever" in the same way
   -- "stage" does.
-  chan' <- liftIO $ newTBQueueIO bufsz
+  chan' <- liftIO $ newTBQueueIO (fromIntegral bufsz)
   withAsync (sender chan' $ prevStage .| c) $ \c' -> do
     link2 prevAsync c'
     fstage (receiver chan') c' cs
 fstage prevStage prevAsync (FMultipleF bufsz dsksz tempDir c cs) = do
   -- This potentially needs to write its output to a file, so it uses
   -- "fsender" send and tells the next stage to use "freceiver" to read.
-  bc <- liftIO $ BufferContext <$> newTBQueueIO bufsz
+  bc <- liftIO $ BufferContext <$> newTBQueueIO (fromIntegral bufsz)
                                <*> newTQueueIO
                                <*> newTVarIO dsksz
                                <*> newTVarIO False

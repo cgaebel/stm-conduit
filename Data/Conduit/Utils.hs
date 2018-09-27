@@ -129,13 +129,13 @@ pair p = do
 -- Instances
 -------------------------------------------------------------------------------
 instance BoundedStream (Proxy2 TBQueue) TBQueue where
-  mkBStream _ i = atomically $ newTBQueue i
+  mkBStream _ i = atomically $ newTBQueue (fromIntegral i)
 
 instance BoundedStream (Proxy2 TBMQueue) TBMQueue where
-  mkBStream _ i = atomically $ newTBMQueue i
+  mkBStream _ i = atomically $ newTBMQueue (fromIntegral i)
 
 instance BoundedStream (Proxy2 TBMChan) TBMChan where
-  mkBStream _ i = atomically $ newTBMChan i
+  mkBStream _ i = atomically $ newTBMChan (fromIntegral i)
 
 instance UnboundedStream (Proxy2 TMQueue) TMQueue where
   mkUStream _ = atomically $ newTMQueue

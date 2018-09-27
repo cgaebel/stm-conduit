@@ -33,7 +33,7 @@ gatherFrom :: (MonadIO m, MonadUnliftIO m)
            -> (TBQueue o -> m ()) -- ^ Action that generates output values
            -> ConduitT () o m ()
 gatherFrom size scatter = do
-    chan   <- liftIO $ newTBQueueIO size
+    chan   <- liftIO $ newTBQueueIO (fromIntegral size)
     worker <- lift $ async (scatter chan)
     gather worker chan
   where
@@ -54,7 +54,7 @@ drainTo :: (MonadIO m, MonadUnliftIO m)
         -> (TBQueue (Maybe i) -> m r)  -- ^ Action to consume input values
         -> ConduitT i Void m r
 drainTo size gather = do
-    chan   <- liftIO $ newTBQueueIO size
+    chan   <- liftIO $ newTBQueueIO (fromIntegral size)
     worker <- lift $ async (gather chan)
     scatter worker chan
   where

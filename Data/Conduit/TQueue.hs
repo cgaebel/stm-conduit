@@ -87,7 +87,7 @@ sinkTBQueue q = CL.mapM_ (liftSTM . writeTBQueue q)
 -- channel, otherwise channel will be closed when the ResourceT scope will be closed.
 entangledPair :: MonadIO m => Int -> m (ConduitT z a m (), ConduitT a l m ())
 entangledPair size = liftM (liftM2 (,) sourceTBQueue sinkTBQueue) $
-  liftIO $ atomically $ newTBQueue size
+  liftIO $ atomically $ newTBQueue (fromIntegral size)
 
 -- | A simple wrapper around a "TMQueue". As data is pushed into the queue, the
 --   source will read it and pass it down the conduit pipeline. When the
