@@ -42,6 +42,7 @@ tests = [
                 , testCase "gatherFrom" test_gatherFrom
                 , testCase "drainTo" test_drainTo
                 , testCase "mergeConduits" test_mergeConduits
+                , testCase "mapConcurrenty" test_mergeConduits
             ],
         testGroup "Bug fixes" [
                   testCase "multipleWriters" test_multipleWriters
@@ -196,3 +197,12 @@ test_mergeConduits = do
       expected = Prelude.map (2 *) input ++ tail (Prelude.scanl (+) 0 input)
     xs <- runConduit $ sourceList ([1..10] :: [Integer]) .|  merged .| consume
     assertEqual "merged results" (sort expected) (sort xs)
+
+test_mapConcurrently :: IO ()
+test_mapConcurrently = do
+  let input = [1..100]
+  res <- runConduitRes $
+    sourceList input
+    .| Data.Conduit.Async.mapConcurrently 2 2 2 (return . show)
+    .| consume
+  assertEqual "mapped result" (Prelude.map show input) res 
