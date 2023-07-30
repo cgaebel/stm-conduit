@@ -22,9 +22,8 @@ Library
         Data.Conduit.TMChan
         Data.Conduit.TQueue
         Data.Conduit.Utils
-
-    other-modules:
         Data.Conduit.Async.Composition
+        Data.Conduit.Async.Composition.Internal
 
     build-depends:
         base                == 4.*
