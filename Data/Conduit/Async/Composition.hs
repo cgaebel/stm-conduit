@@ -1,14 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Data.Conduit.Async.Composition ( CConduit
@@ -25,13 +16,14 @@ module Data.Conduit.Async.Composition ( CConduit
                                       ) where
 
 import Conduit
-import Control.Concurrent.STM (orElse, check)
+import Control.Concurrent.STM (check)
 import Control.Monad hiding (forM_)
 import Control.Monad.Loops
 import Control.Monad.Trans.Resource
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Cereal as C
 import qualified Data.Conduit.List as CL
+import Data.Conduit.Async.Composition.Internal
 import Data.Foldable (forM_)
 import Data.Serialize
 import GHC.Exts (Constraint)
@@ -117,28 +109,6 @@ infixl 1 $=&
 (=$&) = (=$=&)
 infixr 2 =$&
 
--- | Conduits are concatenable; this class describes how.
--- class CCatable (c1 :: * -> * -> (* -> *) -> * -> *) (c2 :: * -> * -> (* -> *) -> * -> *) (c3 :: * -> * -> (* -> *) -> * -> *) | c1 c2 -> c3 where
-class CCatable c1 c2 (c3 :: * -> * -> (* -> *) -> * -> *) | c1 c2 -> c3 where
-  -- | Concurrently join the producer and consumer, using a bounded queue of the
-  -- given size. The producer will block when the queue is full, if it is
-  -- producing faster than the consumers is taking from it. Likewise, if the
-  -- consumer races ahead, it will block until more input is available.
-  --
-  -- Exceptions are properly managed and propagated between the two sides, so
-  -- the net effect should be equivalent to not using buffer at all, save for
-  -- the concurrent interleaving of effects.
-  --
-  -- This function is similar to '=$='; for one more like '$$', see
-  -- 'buffer'.
-  --
-  -- >>> runCConduit $ buffer' 1 (CL.sourceList [1,2,3]) CL.consume
-  -- [1,2,3]
-  buffer' :: Int -- ^ Size of the bounded queue in memory
-             -> c1 i x m ()
-             -> c2 x o m r
-             -> c3 i o m r
-
 -- | Like 'buffer', except that when the bounded queue is overflowed, the
 -- excess is cached in a local file so that consumption from upstream may
 -- continue. When the queue becomes exhausted by yielding, it is filled
@@ -207,35 +177,6 @@ class CRunnable c where
   -- additionally be a in instance of 'MonadResource'.
   runCConduit :: (RunConstraints c m) => c () Void m r -> m r
 
-instance CCatable ConduitT ConduitT CConduit where
-  buffer' i a b = buffer' i (Single a) (Single b)
-
-instance CCatable ConduitT CConduit CConduit where
-  buffer' i a b = buffer' i (Single a) b
-
-instance CCatable ConduitT CFConduit CFConduit where
-  buffer' i a b = buffer' i (asCFConduit a) b
-
-instance CCatable CConduit ConduitT CConduit where
-  buffer' i a b = buffer' i a (Single b)
-
-instance CCatable CConduit CConduit CConduit where
-  buffer' i (Single a) b = Multiple i a b
-  buffer' i (Multiple i' a as) b = Multiple i' a (buffer' i as b)
-
-instance CCatable CConduit CFConduit CFConduit where
-  buffer' i a b = buffer' i (asCFConduit a) b
-
-instance CCatable CFConduit ConduitT CFConduit where
-  buffer' i a b = buffer' i a (asCFConduit b)
-
-instance CCatable CFConduit CConduit CFConduit where
-  buffer' i a b = buffer' i a (asCFConduit b)
-
-instance CCatable CFConduit CFConduit CFConduit where
-  buffer' i (FSingle a) b = FMultiple i a b
-  buffer' i (FMultiple i' a as) b = FMultiple i' a (buffer' i as b)
-  buffer' i (FMultipleF bufsz dsksz tmpDir a as) b = FMultipleF bufsz dsksz tmpDir a (buffer' i as b)
 
 instance CRunnable ConduitT where
   type RunConstraints ConduitT m = (MonadUnliftIO m, Monad m)
@@ -265,11 +206,6 @@ instance CRunnable CFConduit where
     withAsync (fsender context c) $ \c' ->
       fstage (freceiver context) c' cs
 
--- | A "concurrent conduit", in which the stages run in parallel with
--- a buffering queue between them.
-data CConduit i o m r where
-  Single :: ConduitT i o m r -> CConduit i o m r
-  Multiple :: Int -> ConduitT i x m () -> CConduit x o m r -> CConduit i o m r
 
 -- Combines a producer with a queue, sending it everything the
 -- producer produces.
@@ -303,26 +239,6 @@ receiver chan = do
   case mx of
    Nothing -> return ()
    Just x -> yield x >> receiver chan
-
--- | A "concurrent conduit", in which the stages run in parallel with
--- a buffering queue and possibly a disk file between them.
-data CFConduit i o m r where
-  FSingle :: ConduitT i o m r -> CFConduit i o m r
-  FMultiple :: Int -> ConduitT i x m () -> CFConduit x o m r -> CFConduit i o m r
-  FMultipleF :: (Serialize x) => Int -> Maybe Int -> FilePath -> ConduitT i x m () -> CFConduit x o m r -> CFConduit i o m r
-
-class CFConduitLike a where
-  asCFConduit :: a i o m r -> CFConduit i o m r
-
-instance CFConduitLike ConduitT where
-  asCFConduit = FSingle
-
-instance CFConduitLike CConduit where
-  asCFConduit (Single c) = FSingle c
-  asCFConduit (Multiple i c cs) = FMultiple i c (asCFConduit cs)
-
-instance CFConduitLike CFConduit where
-  asCFConduit = id
 
 data BufferContext m a = BufferContext { chan :: TBQueue a
                                        , restore :: TQueue (ConduitT () a m ())
